@@ -88,12 +88,11 @@ R = RegisterBank()
 # parse opcode strings
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
 r'(?P<op>[a-z]+) ((?P<arg1>[a-frx\d]+)(, (?P<arg2>[a-frx\d]+)(, (?P<arg3>[a-frx\d]+))?)?)?$')
-#r'(?P<op>ldr) (?P<target>[r\d+]), (\[pc, 0x(?P<offset>[a-f\d]+)\])|(\[r(?P<source>\d+)\])$')
-re_ldr = re.compile(
-r'(?P<op>ldr) (?P<target>[r\d+]+), (\[pc, (?P<offset>0x[a-f\d]+)\])|(\[r(?P<source>\d+)\])$')
+re_ldr_str = re.compile(
+r'(?P<op>(ldr)|(str)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fx\d]+))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
-opregex = [re_reg_arg, re_ldr, re_push_pop]
+opregex = [re_reg_arg, re_ldr_str, re_push_pop]
 
 
 def parseop(op):
@@ -137,17 +136,20 @@ def exec(instr):
 	op = parseop(instr['opcode'])
 	name = op['op']
 	args = op['args'] if 'args' in op else None
-	if name.startswith('bl'):
+	if name.startswith('bl') or name in ['b']:
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
-	elif name == 'ldr':
-		if op['source'] is None:
+	elif name in ['ldr', 'str']:
+		if op['addr'] is None:
 			# TODO: why do we need +4? where are we off by 1 (*4)?
 			addr = R[15] + i2i(op['offset']) + 4
 		else:
-			addr = R[op['source']]
-		R[op['target']] = mem[addr]
+			addr = R[op['addr']]
+		if name == 'ldr':
+			R[op['reg']] = mem[addr]
+		else:
+			mem[addr] = R[op['reg']]
 	elif name == 'push':
 		for rr in sorted((r2i(rr) for rr in args), reverse=True):
 			mem[R[r2i('sp')]] = R[rr]
@@ -159,12 +161,17 @@ def exec(instr):
 	elif name.startswith('mov'):
 		R[args[0]] = value(args[1])
 	elif name.startswith('add'):
-		R[args[0]] = value(args[1]) - value(args[2])
+		if len(args) > 2:
+			R[args[0]] = value(args[1]) + value(args[2])
+		else:
+			R[args[0]] = value(args[0]) + value(args[1])
 	elif name.startswith('sub'):
-		R[args[0]] = value(args[1]) - value(args[2])
+		if len(args) > 2:
+			R[args[0]] = value(args[1]) - value(args[2])
+		else:
+			R[args[0]] = value(args[0]) - value(args[1])
 	else:
 		print("TODO: handle operation `{}`".format(op['op']))
-
 
 	print("0x{:02x}: {} => {}".format(instr['offset'], instr['opcode'], op))
 	print("R: {}".format(R))
@@ -186,6 +193,7 @@ with open(pc) as ff:
 			print("Unknown line: {}".format(line))
 			continue
 		addr = line[3:].strip()
+		print("{}: {}".format(instr_count, addr))
 		exec(r2.cmdj("pdj 1 @ {}".format(addr))[0])
 		instr_count += 1
 		if instr_count >= max_instr_count:
