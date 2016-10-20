@@ -172,16 +172,17 @@ def exec(instr):
 			R[rr] = mem[R[r2i('sp')]]
 	elif name.startswith('mov'):
 		R[args[0]] = value(args[1])
-	elif name.startswith('add'):
+	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls']:
+		name = name[:-1] if name[-1] == 's' else name
+		operation = {
+			'add': lambda a,b: a + b,
+			'sub': lambda a,b: a - b,
+			'lsl': lambda a,b: a << b,
+		}[name]
 		if len(args) > 2:
-			R[args[0]] = value(args[1]) + value(args[2])
+			R[args[0]] = operation(value(args[1]), value(args[2]))
 		else:
-			R[args[0]] = value(args[0]) + value(args[1])
-	elif name.startswith('sub'):
-		if len(args) > 2:
-			R[args[0]] = value(args[1]) - value(args[2])
-		else:
-			R[args[0]] = value(args[0]) - value(args[1])
+			R[args[0]] = operation(value(args[0]), value(args[1]))
 	else:
 		print("TODO: handle operation `{}`".format(op['op']))
 
