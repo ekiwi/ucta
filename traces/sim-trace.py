@@ -20,12 +20,13 @@ are zero when we start, except for `r` of cause which is the `pc`
 import re, math, sys
 import r2pipe
 
-if len(sys.argv) < 3:
-	print("{} pc_file fw_elf".format(sys.argv[0]))
+if len(sys.argv) < 4:
+	print("{} pc_file fw_elf stack_ptr_addr".format(sys.argv[0]))
 	sys.exit(1)
 
 pc = sys.argv[1]
 fw = sys.argv[2]
+init_sp = int(sys.argv[3], 16)
 
 # load firmware image
 r2 = r2pipe.open(fw)	# TODO: ugly global
@@ -193,7 +194,7 @@ with open(pc) as ff:
 	# TODO: this was read out with a debugger.... we actually need to calculate
 	#       the value of the stack pointer, but this is only possible,
 	#       when tracing from the beginning
-	R[r2i('sp')] = 0x10000bc0
+	R[r2i('sp')] = init_sp
 	for line in ff.readlines():
 		if not line.startswith('PC '):
 			print("Unknown line: {}".format(line))
