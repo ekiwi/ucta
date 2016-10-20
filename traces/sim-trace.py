@@ -81,6 +81,11 @@ class Ram:
 		ii = (addr - self.offset) >> self.shift
 		self.state[ii] = MemState.concrete
 		self.data[ii] = vv
+	def print_known_content(self):
+		for ii in range(0, len(self.data)):
+			if self.state[ii] == MemState.unknown: continue
+			addr = (ii << self.shift) + self.offset
+			print('0x{:08x}: 0x{:08x}   '.format(addr, self.data[ii]))
 
 class Rom:
 	def __init__(self, name, size, offset):
@@ -115,6 +120,10 @@ class Memory:
 				sec[ii] = vv
 				return
 		raise Exception("Invalid write access to addr: 0x{:08x}".format(ii))
+
+	def print_known_content(self):
+		for sec in self.sections:
+			if isinstance(sec, Ram): sec.print_known_content()
 
 
 mem = Memory(
@@ -244,5 +253,7 @@ with open(pc) as ff:
 		instr_count += 1
 		if instr_count >= max_instr_count:
 			break
+
+mem.print_known_content()
 
 r2.quit()
