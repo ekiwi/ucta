@@ -17,11 +17,15 @@ are zero when we start, except for `r` of cause which is the `pc`
 """
 
 
-fw = "target-fw.elf"
-pc = "pc"
-
-import re, math
+import re, math, sys
 import r2pipe
+
+if len(sys.argv) < 3:
+	print("{} pc_file fw_elf".format(sys.argv[0]))
+	sys.exit(1)
+
+pc = sys.argv[1]
+fw = sys.argv[2]
 
 # load firmware image
 r2 = r2pipe.open(fw)	# TODO: ugly global
