@@ -75,7 +75,7 @@ class Ram:
 	def __getitem__(self, addr):
 		ii = (addr - self.offset) >> self.shift
 		if self.state[ii] == MemState.unknown:
-			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(ii))
+			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(addr))
 		return self.data[ii]
 	def __setitem__(self, addr, vv):
 		ii = (addr - self.offset) >> self.shift
