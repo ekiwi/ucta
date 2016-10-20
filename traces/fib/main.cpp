@@ -36,8 +36,10 @@ main()
 	{
 		// enable ETM
 		ETM->CR &= ~ETM_CR_PROGRAMMING;
+		asm volatile("": : :"memory");
 		result = fib(10);
 		// disable ETM
+		asm volatile("": : :"memory");
 		ETM->CR |= ETM_CR_PROGRAMMING;
 		ITM->PORT[0].u32 = result;
 
