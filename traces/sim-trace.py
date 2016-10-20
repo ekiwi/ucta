@@ -17,7 +17,7 @@ are zero when we start, except for `r` of cause which is the `pc`
 """
 
 
-import re, math, sys
+import re, math, sys, shutil
 from enum import Enum
 import r2pipe
 
@@ -52,7 +52,17 @@ class RegisterBank:
 		self.state[r2i(ii)] = MemState.concrete
 		self.data[r2i(ii)] = vv
 	def __str__(self):
-		return '[' + ', '.join('0x{:02x}'.format(dd) for dd in self.data) + ']'
+		cols = int(shutil.get_terminal_size((80, 20)).columns / 16)
+		out = ''
+		cc = 0
+		for ii in range(0, len(self.data)):
+			if cc >= cols:
+				out += '\n'
+				cc = 0
+			if self.state[ii] == MemState.unknown: continue
+			out += 'r{}: 0x{:08x}   '.format(ii, self.data[ii])
+			cc += 1
+		return out
 
 class Ram:
 	def __init__(self, name, size, offset, word_size=4):
@@ -205,7 +215,7 @@ def exec(instr):
 		print("TODO: handle operation `{}`".format(op['op']))
 
 	print("0x{:02x}: {} => {}".format(instr['offset'], instr['opcode'], op))
-	print("R: {}".format(R))
+	print(R)
 
 
 
