@@ -18,6 +18,7 @@ are zero when we start, except for `r` of cause which is the `pc`
 
 
 import re, math, sys
+from enum import Enum
 import r2pipe
 
 if len(sys.argv) < 4:
@@ -31,13 +32,23 @@ init_sp = int(sys.argv[3], 16)
 # load firmware image
 r2 = r2pipe.open(fw)	# TODO: ugly global
 
+class MemState(Enum):
+	unknown = 0
+	concrete = 1
+	symbolic = 2
+
 class RegisterBank:
 	def __init__(self):
 		self.name = 'regs'
 		self.data = [0] * 16
+		self.state = [MemState.unknown] * 16
 	def __getitem__(self, ii):
-		return self.data[r2i(ii)]
+		ii = r2i(ii)
+		if self.state[ii] == MemState.unknown:
+			raise Exception("Cannot read from r{}: value unknown".format(ii))
+		return self.data[ii]
 	def __setitem__(self, ii, vv):
+		self.state[r2i(ii)] = MemState.concrete
 		self.data[r2i(ii)] = vv
 	def __str__(self):
 		return '[' + ', '.join('0x{:02x}'.format(dd) for dd in self.data) + ']'
@@ -45,14 +56,20 @@ class RegisterBank:
 class Ram:
 	def __init__(self, name, size, offset, word_size=4):
 		self.data = [0]*size
+		self.state = [MemState.unknown] * size
 		self.offset = offset
 		self.shift = int(math.log(word_size, 2))
 	def addr_in_range(self, addr):
 		return addr >= self.offset and addr < self.offset + len(self.data)
-	def __getitem__(self, ii):
-		return self.data[(ii - self.offset) >> self.shift]
-	def __setitem__(self, ii, vv):
-		self.data[(ii - self.offset) >> self.shift] = vv
+	def __getitem__(self, addr):
+		ii = (addr - self.offset) >> self.shift
+		self.state[ii] = MemState.concrete
+		return self.data[ii]
+	def __setitem__(self, addr, vv):
+		ii = (addr - self.offset) >> self.shift
+		if self.state[ii] == MemState.unknown:
+			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(ii))
+		self.data[ii] = vv
 
 class Rom:
 	def __init__(self, name, size, offset):
