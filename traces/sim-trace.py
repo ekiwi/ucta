@@ -62,7 +62,10 @@ class Rom:
 	def addr_in_range(self, addr):
 		return addr >= self.offset and addr < self.offset + self.size
 	def __getitem__(self, ii):
-		return r2.cmdj("pfj x @ {}".format(ii))[0]['value']
+		hxdump = r2.cmd("pxw 4 @ {}".format(ii))
+		print(hxdump)
+		vv = int(re.match(r'0x[a-f\d]+ +(?P<vv>0x[a-f\d]+)', hxdump).group('vv'), 16)
+		return vv
 	def __setitem__(self, ii, vv):
 		raise Exception('Cannt write to Read Only Memory.')
 
@@ -94,9 +97,9 @@ R = RegisterBank()
 
 # parse opcode strings
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
-r'(?P<op>[a-z]+) ((?P<arg1>[a-frx\d]+)(, (?P<arg2>[a-frx\d]+)(, (?P<arg3>[a-frx\d]+))?)?)?$')
+r'(?P<op>[a-z]+) ((?P<arg1>[a-frxsp\d]+)(, (?P<arg2>[a-frxsp\d]+)(, (?P<arg3>[a-frxsp\d]+))?)?)?$')
 re_ldr_str = re.compile(
-r'(?P<op>(ldr)|(str)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fx\d]+))?\]$')
+r'(?P<op>(ldr)|(str)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 opregex = [re_reg_arg, re_ldr_str, re_push_pop]
@@ -143,16 +146,15 @@ def exec(instr):
 	op = parseop(instr['opcode'])
 	name = op['op']
 	args = op['args'] if 'args' in op else None
-	if name.startswith('bl') or name in ['b']:
+	if name.startswith('bl') or name in ['b', 'bne']:
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
 	elif name in ['ldr', 'str']:
-		if op['addr'] is None:
+		addr = R[op['addr']]
+		if op['offset'] is not None:
 			# TODO: why do we need +4? where are we off by 1 (*4)?
-			addr = R[15] + i2i(op['offset']) + 4
-		else:
-			addr = R[op['addr']]
+			addr += value(op['offset']) + 4
 		if name == 'ldr':
 			R[op['reg']] = mem[addr]
 		else:
