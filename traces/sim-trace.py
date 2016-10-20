@@ -75,12 +75,15 @@ class Memory:
 	def __getitem__(self, ii):
 		for sec in self.sections:
 			if sec.addr_in_range(ii):
-				return sec[ii]
+				vv = sec[ii]
+				print("0x{:08x} => 0x{:08x}".format(ii, vv))
+				return vv
 		raise Exception("Invalid read access to addr: 0x{:08x}".format(ii))
 
 	def __setitem__(self, ii, vv):
 		for sec in self.sections:
 			if sec.addr_in_range(ii):
+				print("0x{:08x} <= 0x{:08x}".format(ii, vv))
 				sec[ii] = vv
 				return
 		raise Exception("Invalid write access to addr: 0x{:08x}".format(ii))
