@@ -28,7 +28,6 @@ main()
 {
 	// initialize
 	systemClock::enable();
-	xpcc::cortex::SysTickTimer::initialize<systemClock>();
 
 	volatile uint32_t result;
 
