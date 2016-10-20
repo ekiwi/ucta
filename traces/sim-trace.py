@@ -64,12 +64,12 @@ class Ram:
 		return addr >= self.offset and addr < self.offset + len(self.data)
 	def __getitem__(self, addr):
 		ii = (addr - self.offset) >> self.shift
-		self.state[ii] = MemState.concrete
+		if self.state[ii] == MemState.unknown:
+			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(ii))
 		return self.data[ii]
 	def __setitem__(self, addr, vv):
 		ii = (addr - self.offset) >> self.shift
-		if self.state[ii] == MemState.unknown:
-			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(ii))
+		self.state[ii] = MemState.concrete
 		self.data[ii] = vv
 
 class Rom:
