@@ -22,12 +22,13 @@ from enum import Enum
 import r2pipe
 
 if len(sys.argv) < 4:
-	print("{} pc_file fw_elf stack_ptr_addr".format(sys.argv[0]))
+	print("{} pc_file fw_elf (reg=value)+".format(sys.argv[0]))
 	sys.exit(1)
 
 pc = sys.argv[1]
 fw = sys.argv[2]
-init_sp = int(sys.argv[3], 16)
+
+
 
 # load firmware image
 r2 = r2pipe.open(fw)	# TODO: ugly global
@@ -213,11 +214,16 @@ def exec(instr):
 # load and execute instructions
 max_instr_count = 30000
 instr_count = 0
+
+# initialize registers if set via command line arguments
+for reg in sys.argv[3:]:
+	mm = re.match(r'(?P<reg>[rsplc\d+]+)=(?P<value>[a-fx\d]+)', reg)
+	if mm:
+		R[mm.group('reg')] = i2i(mm.group('value'))
+	else:
+		raise Exception("Invalid register init parameter `{}`. Try e.g. sp=0x123".format(reg))
+
 with open(pc) as ff:
-	# TODO: this was read out with a debugger.... we actually need to calculate
-	#       the value of the stack pointer, but this is only possible,
-	#       when tracing from the beginning
-	R[r2i('sp')] = init_sp
 	for line in ff.readlines():
 		if not line.startswith('PC '):
 			print("Unknown line: {}".format(line))
