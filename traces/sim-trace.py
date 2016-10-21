@@ -142,7 +142,9 @@ re_ldr_str = re.compile(
 r'(?P<op>(ldr)|(str)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
-opregex = [re_reg_arg, re_ldr_str, re_push_pop]
+re_ldm_stm = re.compile(
+r'(?P<op>(ldm)|(stm)) (?P<reg>[r\d+]+)(?P<increment>!)?, \{(?P<args>[a-frxlsp, \d]+)\}$')
+opregex = [re_reg_arg, re_ldr_str, re_push_pop, re_ldm_stm]
 
 
 def parseop(op):
