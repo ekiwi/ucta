@@ -211,9 +211,9 @@ def exec(instr):
 	elif name in ['stm', 'ldm']:
 		addr = R[r2i(op['reg'])]
 		for rr in sorted(r2i(rr) for rr in args):
-			addr += 4
 			if name == 'stm': mem[addr] = R[rr]
 			else            : R[rr] = mem[addr]
+			addr += 4
 		if op['increment'] is not None:
 			R[r2i(op['reg'])] = addr
 	elif name.startswith('mov'):
