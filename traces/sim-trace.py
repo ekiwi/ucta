@@ -183,7 +183,9 @@ def value(arg):
 	return R[arg] if is_reg(arg) else i2i(arg)
 
 def exec(instr):
-	R[15] = instr['offset']
+	# 4 byte aligned pc used for address calculations
+	pc = instr['offset']
+	R[15] = pc + 4 if pc % 4 == 0 else pc + 2
 	op = parseop(instr['opcode'])
 	name = op['op']
 	args = op['args'] if 'args' in op else None
@@ -194,8 +196,7 @@ def exec(instr):
 	elif name in ['ldr', 'str']:
 		addr = R[op['addr']]
 		if op['offset'] is not None:
-			# TODO: why do we need +4? where are we off by 1 (*4)?
-			addr += value(op['offset']) + 4
+			addr += value(op['offset'])
 		if name == 'ldr':
 			R[op['reg']] = mem[addr]
 		else:
