@@ -233,7 +233,7 @@ def exec(instr):
 	else:
 		print("TODO: handle operation `{}`".format(op['op']))
 
-	print("0x{:02x}: {} => {}".format(instr['offset'], instr['opcode'], op))
+	print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], op))
 	print(R)
 
 
