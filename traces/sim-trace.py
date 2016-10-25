@@ -96,7 +96,6 @@ class Rom:
 		return addr >= self.offset and addr < self.offset + self.size
 	def __getitem__(self, ii):
 		hxdump = r2.cmd("pxw 4 @ {}".format(ii))
-		print(hxdump)
 		vv = int(re.match(r'0x[a-f\d]+ +(?P<vv>0x[a-f\d]+)', hxdump).group('vv'), 16)
 		return vv
 	def __setitem__(self, ii, vv):
@@ -209,6 +208,14 @@ def exec(instr):
 		for rr in sorted(r2i(rr) for rr in args):
 			R[r2i('sp')] = R[r2i('sp')] + 4
 			R[rr] = mem[R[r2i('sp')]]
+	elif name in ['stm', 'ldm']:
+		addr = R[r2i(op['reg'])]
+		for rr in sorted(r2i(rr) for rr in args):
+			addr += 4
+			if name == 'stm': mem[addr] = R[rr]
+			else            : R[rr] = mem[addr]
+		if op['increment'] is not None:
+			R[r2i(op['reg'])] = addr
 	elif name.startswith('mov'):
 		R[args[0]] = value(args[1])
 	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls']:
