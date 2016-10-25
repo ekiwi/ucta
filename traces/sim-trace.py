@@ -29,6 +29,7 @@ pc = sys.argv[1]
 fw = sys.argv[2]
 
 
+WordMax = (1<<32) - 1
 
 # load firmware image
 r2 = r2pipe.open(fw)	# TODO: ugly global
@@ -227,9 +228,9 @@ def exec(instr):
 			'lsl': lambda a,b: a << b,
 		}[name]
 		if len(args) > 2:
-			R[args[0]] = operation(value(args[1]), value(args[2]))
+			R[args[0]] = operation(value(args[1]), value(args[2])) & WordMax
 		else:
-			R[args[0]] = operation(value(args[0]), value(args[1]))
+			R[args[0]] = operation(value(args[0]), value(args[1])) & WordMax
 	else:
 		print("TODO: handle operation `{}`".format(op['op']))
 
