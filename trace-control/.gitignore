@@ -1,0 +1,10 @@
+*~
+build/
+.sconsign.dblite
+
+# qtcreator
+*.config
+*.creator
+*.files
+*.includes
+*.creator.user
