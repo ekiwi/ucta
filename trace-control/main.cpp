@@ -72,20 +72,17 @@ static inline void start_etm_on_stm32f407(ARMDebug &tt) {
 
 	// see ARM section "C1.8.2 Register support for the DWT"
 	STR(&DWT->CTRL,
-	    4 << DWT_CTRL_NUMCOMP_Pos | // number of comparators
-	    DWT_CTRL_EXCTRCENA_Msk    | // enable exception trace
-	    DWT_CTRL_PCSAMPLENA_Msk   | // See Table C1-18 on page C1-35 for details.
-	    2 << DWT_CTRL_SYNCTAP_Pos | // synchronization packet rate, Tap at CYCCNT bit 26
-	    DWT_CTRL_CYCTAP_Msk       | // select Tap at CYCCNT bit 10 (i.e. when bit 10 of the cycle counter is toggled)
+	    1 << DWT_CTRL_SYNCTAP_Pos | // synchronization packet rate, Tap at CYCCNT bit 26
 	    DWT_CTRL_CYCCNTENA_Msk);    // enabe cycle counter
+	// TODO: should be 0x401
 
 	// see ARM section "C1.7.2 Register support for the ITM"
 	STR(&ITM->LAR, 0xc5acce55); // magic value to activate ITM
 	STR(&ITM->TCR,
 	    1 << ITM_TCR_TraceBusID_Pos | // TraceBus ID
 	    ITM_TCR_DWTENA_Msk          | // event packet emission from DWT -> TPIU
-	    ITM_TCR_SYNCENA_Msk        ); // synchronization packet transmission for synchronous TPIU
-	//    ITM_TCR_ITMENA_Msk);          // enable ITM
+	    ITM_TCR_SYNCENA_Msk         | // synchronization packet transmission for synchronous TPIU
+	    ITM_TCR_ITMENA_Msk);          // enable ITM
 	STR(&ITM->TER, 0xffffffff); // enable all stimulus ports
 
 	// see ETM section "3.5.61 Lock Access Register, ETMLAR, ETMv3.2 and later"
@@ -97,16 +94,18 @@ static inline void start_etm_on_stm32f407(ARMDebug &tt) {
 	    ETM_CR_BRANCH_OUTPUT_Msk   |
 	    ETM_CR_PROGRAMMING_Msk     |
 	    ETM_CR_PORT_SELECTION_Msk);
-	STR(&ETM->TRACEIDR, 2); // TraceBus ID
+	STR(&ETM->TRACEIDR, 10); // TraceBus ID
 	// the following tells the ETM to "exclude nothing"
 	STR(&ETM->TECR1, ETM_TECR1_INC_EXC_COTRL_Msk); // => "trace always enabled"
 	// see ETM section "3.5.13 FIFOFULL Region Register, ETMFFRR"
 	// "exclude nothing" (i.e. no mem region) from setting the fifo full flag
 	STR(&ETM->FFRR, ETM_FFRR_INC_EXC_COTRL_Msk); // => "Stalling always enabled"
 	STR(&ETM->FFLR, 24); // fifo full level <= 24
+	// configure trigger as described in the STM32F4 Reference Manual
+	STR(&ETM->TRIGGER, 0x406f);
+	STR(&ETM->TEEVR,   0x006f);
 	// deassert ETM Programming bit
 	STR(&ETM->CR, LDR(&ETM->CR) & ~ETM_CR_PROGRAMMING_Msk);
-	LDR(&ETM->CR);
 }
 
 int
