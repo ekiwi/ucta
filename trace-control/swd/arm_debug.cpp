@@ -165,7 +165,7 @@ bool ARMDebug::debugHalt()
 		while (haltRetries) {
 			haltRetries--;
 
-			if (!apWrite(MEM_DRW, 0xA05F0003))
+			if (!apWrite(MEM_DRW, 0xA05F0003))  // C_HALT | C_DEBUGEN
 				continue;
 			if (!apRead(MEM_DRW, dhcsr))
 				continue;
@@ -185,6 +185,48 @@ bool ARMDebug::debugHalt()
 	}
 
 	return true;
+}
+
+bool ARMDebug::reset(ResetAnd mode)
+{
+	const uint32_t S_RESET_ST = (1 << 25);
+
+	// this part is inspired by openocd:
+	// we tell the processor to halt after a reset
+	const uint32_t demcr = (mode == ResetAnd::Halt)?
+	            CoreDebug_DEMCR_TRCENA_Msk | CoreDebug_DEMCR_VC_CORERESET_Msk :
+	            CoreDebug_DEMCR_TRCENA_Msk;
+	if(!memStore(REG_SCB_DEMCR, demcr)) { return false; }
+
+
+	// inspired by blackmagic source code (https://github.com/blacksphere/blackmagic)
+	// src/target/cortexm.c : static void cortexm_reset(target *t)
+
+	// read DHCSR to clear S_RESET_ST flag
+	uint32_t dhcsr;
+	if (!memLoad(REG_SCB_DHCSR, dhcsr)) { return false; }
+
+	// request system reset
+	// see "ARMv7-M Architecture Reference Manual" section "B3.2.3 The System Control Block (SCB)"
+	const uint32_t aircr = (0x05fa << SCB_AIRCR_VECTKEY_Pos) | SCB_AIRCR_SYSRESETREQ_Msk;
+	if(!memStore(REG_SCB_AIRCR, aircr)) { return false; }
+
+	// poll reset flag
+	bool reset = false;
+	while(not reset) {
+		if (!memLoad(REG_SCB_DHCSR, dhcsr)) { continue; }
+		reset = not static_cast<bool>(dhcsr & S_RESET_ST);
+	}
+
+	// clear DFSR flags by writing a one to them
+	return memStore(REG_SCB_DFSR, (1<<5) - 1);
+
+}
+
+bool ARMDebug::release_and_resume()
+{
+	// clear halt, debug enable etc ...
+	return memStore(REG_SCB_DHCSR, (0xa05f << 16));
 }
 
 bool ARMDebug::regTransactionHandshake()

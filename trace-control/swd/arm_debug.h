@@ -26,6 +26,8 @@
 #include <stdbool.h>
 
 
+enum class ResetAnd { Halt, Continue };
+
 class ARMDebug
 {
 public:
@@ -56,6 +58,10 @@ public:
 
 	// Turn on debugging and enter halt state
 	bool debugHalt();
+
+	bool reset(ResetAnd mode);
+
+	bool release_and_resume();
 
 	// CPU register operations, when halted (via DCRSR)
 	bool regWrite(unsigned num, uint32_t data);
