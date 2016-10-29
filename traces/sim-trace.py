@@ -246,12 +246,16 @@ max_instr_count = 30000
 instr_count = 0
 
 # initialize registers if set via command line arguments
+load_sp_from_rom = True
 for reg in sys.argv[3:]:
 	mm = re.match(r'(?P<reg>[rsplc\d+]+)=(?P<value>[a-fx\d]+)', reg)
 	if mm:
 		R[mm.group('reg')] = i2i(mm.group('value'))
+		if mm.group('reg') == 13: load_sp_from_rom = False
 	else:
 		raise Exception("Invalid register init parameter `{}`. Try e.g. sp=0x123".format(reg))
+if load_sp_from_rom:
+	R['sp'] = mem[0x08000000]
 
 with open(pc) as ff:
 	for line in ff.readlines():
