@@ -39,7 +39,16 @@ enum class TraceMode : uint32_t {
 
 
 
-static inline void start_etm_on_stm32f407(ARMDebug &tt) {
+static inline void stop_etm(ARMDebug &tt) {
+	// see ETM section "3.4.4 ETM Programming bit and associated state"
+	STR(&ETM->CR, LDR(&ETM->CR) | ETM_CR_PROGRAMMING_Msk);
+}
+static inline void start_etm(ARMDebug &tt) {
+	// deassert ETM Programming bit
+	STR(&ETM->CR, LDR(&ETM->CR) & ~ETM_CR_PROGRAMMING_Msk);
+}
+
+static inline void initialize_etm_on_stm32f407(ARMDebug &tt) {
 	// thank you to Petteri Aimonen for providing a working configuration!
 
 	// comments below refer to sections in:
@@ -48,7 +57,26 @@ static inline void start_etm_on_stm32f407(ARMDebug &tt) {
 	// * ARM: ARMv7-M Architecture Reference Manual
 	// * ETM: Embedded Trace Macrocell Architecture Specification
 
-	XPCC_LOG_DEBUG << "trying to enable etm on target..." << xpcc::endl;
+	XPCC_LOG_DEBUG << "trying to initialize etm on target..." << xpcc::endl;
+
+	// initialize GPIO Port B because the PB3 is the SWO pin
+	// the address of the AHB1ENR and the AHB1RSTR registers differ between
+	// stm32f3 and stm32f4 devices, thus they are hard coded for stm32f4 here:
+	// src: stm32f407xx.h
+	const uint32_t PERIPH_BASE_ADDR     = 0x40000000U;
+	const uint32_t AHB1PERIPH_BASE_ADDR = PERIPH_BASE_ADDR + 0x00020000U;
+	const uint32_t RCC_ADDR             = AHB1PERIPH_BASE_ADDR + 0x3800U;
+	const uint32_t RCC_AHB1ENR_ADDR     = RCC_ADDR + 0x30;
+	const uint32_t RCC_AHB1RSTR_ADDR    = RCC_ADDR + 0x10;
+	const uint32_t RCC_AHB1ENR_GPIOBEN   = 0x00000002U;
+	const uint32_t RCC_AHB1RSTR_GPIOBRST = 0x00000002U;
+	// enable
+	STR(RCC_AHB1ENR_ADDR, LDR(RCC_AHB1ENR_ADDR) | RCC_AHB1ENR_GPIOBEN);
+	// reset
+	// TODO: somehow resetting the peripheral prevents etm output ...
+	//const uint32_t AHB1RSTR = LDR(RCC_AHB1RSTR_ADDR);
+	//STR(RCC_AHB1RSTR_ADDR, AHB1RSTR |  RCC_AHB1RSTR_GPIOBRST);
+	//STR(RCC_AHB1RSTR_ADDR, AHB1RSTR & ~RCC_AHB1RSTR_GPIOBRST);
 
 	// see RM0090 section "38.16.3 Debug MCU configuration register"
 	STR(&DBGMCU->CR,
@@ -88,7 +116,7 @@ static inline void start_etm_on_stm32f407(ARMDebug &tt) {
 	// see ETM section "3.5.61 Lock Access Register, ETMLAR, ETMv3.2 and later"
 	STR(&ETM->LAR, 0xc5acce55); // magic value to activate ETM
 	// see ETM section "3.4.4 ETM Programming bit and associated state"
-	STR(&ETM->CR, LDR(&ETM->CR) | ETM_CR_PROGRAMMING_Msk);
+	stop_etm(tt);
 	STR(&ETM->CR,
 	    ETM_CR_STALL_PROCESSOR_Msk |
 	    ETM_CR_BRANCH_OUTPUT_Msk   |
@@ -104,14 +132,15 @@ static inline void start_etm_on_stm32f407(ARMDebug &tt) {
 	// configure trigger as described in the STM32F4 Reference Manual
 	STR(&ETM->TRIGGER, 0x406f);
 	STR(&ETM->TEEVR,   0x006f);
-	// deassert ETM Programming bit
-	STR(&ETM->CR, LDR(&ETM->CR) & ~ETM_CR_PROGRAMMING_Msk);
 }
+
+using TriggerOut = GpioOutputC8;
 
 int
 main()
 {
 	Board::initialize();
+	TriggerOut::setOutput(xpcc::Gpio::Low);
 
 	// initialize Uart2 for XPCC_LOG_
 	GpioOutputA2::connect(Usart2::Tx);
@@ -127,6 +156,14 @@ main()
 			;
 	}
 
+	// first stop the target
+	target.debugHalt();
+	// then reset it while keeping it in halt state
+	if( not target.reset(ResetAnd::Halt)) {
+		XPCC_LOG_ERROR << "Failed to reset and halt target ...." << xpcc::endl;
+	}
+
+
 	XPCC_LOG_INFO << "Unique Device Id: 0x";
 	uint32_t data[3];
 	target.memLoad(UniqueIdAddress, data, 3);
@@ -137,7 +174,20 @@ main()
 	target.memLoad(FlashSizeAddress, flash_size);
 	XPCC_LOG_INFO << (flash_size >> 16) << "kBytes" << xpcc::endl;
 
-	start_etm_on_stm32f407(target);
+	// first stop the etm because it might be already running
+	stop_etm(target);
+	// no initialize it to make sure it is configured
+	initialize_etm_on_stm32f407(target);
+
+	xpcc::delayMilliseconds(2);
+
+	// trigger logic analyzer
+	TriggerOut::set();
+	start_etm(target);
+	TriggerOut::reset();
+
+	target.release_and_resume();
+
 
 	while (1)
 	{
