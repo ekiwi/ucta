@@ -15,8 +15,6 @@ typedef struct {
 
 }
 
-using systemClock = SystemClock<ExternalCrystal<MHz8>>;
-
 const uint32_t values[10] = {4, 8, 3, 25, 3, 0, 4, 5, 100, 7549387};
 
 void swap(uint32_t* vv, const int32_t ii, const int32_t jj) {
@@ -38,49 +36,25 @@ void bubble_sort(uint32_t* vv, const int32_t count) {
 	}
 }
 
-
 int
 main()
 {
 	// initialize
-	systemClock::enable();
+	// do not initialize the system clock in order to maintin a constant
+	// frequency of approx. 16 MHz from the internal RC oscillator
+	// switching frequencies disturbes the UART like output from the ETM
+	// eventually we need to switch to the synchronous TPIU interface
+	// which will provide independence from the system clock of our target controller
+	//systemClock::enable();
+
+	asm volatile("": : :"memory");
+	uint32_t sorted[10];
+	std::memcpy(sorted, values, sizeof(uint32_t) * 10);
+	bubble_sort(sorted, 10);
+	asm volatile("": : :"memory");
 
 	while (1)
 	{
-		// send some dummy values to help sigrok decoder
-		ITM->PORT[0].u32 = 0;
-		xpcc::delayMicroseconds(2);
-		ITM->PORT[0].u32 = 0;
-		xpcc::delayMicroseconds(2);
-		// send inputs
-		for(int32_t ii = 0; ii < 10; ++ii) {
-			ITM->PORT[0].u32 = values[ii];
-			xpcc::delayMicroseconds(2);
-		}
-
-		// enable ETM
-		ETM->CR &= ~ETM_CR_PROGRAMMING;
-		asm volatile("": : :"memory");
-		uint32_t sorted[10];
-		std::memcpy(sorted, values, sizeof(uint32_t) * 10);
-		bubble_sort(sorted, 10);
-		asm volatile("": : :"memory");
-		// disable ETM
-		ETM->CR |= ETM_CR_PROGRAMMING;
-
-		// send outputs
-		for(int32_t ii = 0; ii < 10; ++ii) {
-			ITM->PORT[0].u32 = sorted[ii];
-			xpcc::delayMicroseconds(2);
-		}
-		// send some dummy values to help sigrok decoder
-		ITM->PORT[0].u32 = 0;
-		xpcc::delayMicroseconds(2);
-		ITM->PORT[0].u32 = 0;
-		xpcc::delayMicroseconds(2);
-
-		xpcc::delayMilliseconds(1);
-
 	}
 
 	return 0;
