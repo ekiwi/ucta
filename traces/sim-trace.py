@@ -170,9 +170,11 @@ class Memory:
 		self.sections = sections
 	def commit(self, transaction):
 		assert(isinstance(transaction, MemoryTransaction))
-		sec = next(sec for sec in self.sections if sec.addr_in_range(transaction))
-		return sec.commit(transaction)
-		# TODO: handle cases in which no section is found
+		try:
+			sec = next(sec for sec in self.sections if sec.addr_in_range(transaction))
+			return sec.commit(transaction)
+		except:
+			raise Exception("Cannot access memory at: 0x{:08x}".format(transaction.addr))
 	# convenience methods to create and execute transactions
 	def read(self, addr, size='w'):
 		return self.commit(MemoryRead(addr=addr, bytes={'w':4,'h':2,'b':1}[size]))
@@ -193,7 +195,10 @@ mem = Memory(
 	PeripheralMemory('apb1', bytes=  0x7fff, start=0x40000000),
 	PeripheralMemory('apb2', bytes=  0x57ff, start=0x40010000),
 	PeripheralMemory('ahb1', bytes= 0x5ffff, start=0x40020000),
-	PeripheralMemory('ahb2', bytes= 0x60bff, start=0x50000000))
+	PeripheralMemory('ahb2', bytes= 0x60bff, start=0x50000000),
+	PeripheralMemory('cortex-m4', bytes= 0xfffff, start=0xe0000000))
+
+
 
 R = RegisterBank()
 
