@@ -280,7 +280,7 @@ def exec(instr):
 		else:
 			R[args[0]] = operation(value(args[0]), value(args[1])) & WordMax
 	else:
-		print("TODO: handle operation `{}`".format(op['op']))
+		print("\033[31mTODO\033[0m: handle operation `{}`".format(op['op']))
 
 	print(R)
 
