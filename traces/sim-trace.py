@@ -282,7 +282,6 @@ def exec(instr):
 	else:
 		print("TODO: handle operation `{}`".format(op['op']))
 
-	print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], op))
 	print(R)
 
 
@@ -311,8 +310,9 @@ with open(pc) as ff:
 			print("Unknown line: {}".format(line))
 			continue
 		addr = line[3:].strip()
-		print("{}: {}".format(instr_count, addr))
-		exec(r2.cmdj("pdj 1 @ {}".format(addr))[0])
+		instr = r2.cmdj("pdj 1 @ {}".format(addr))[0]
+		print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], parseop(instr['opcode'])))
+		exec(instr)
 		instr_count += 1
 		if instr_count >= max_instr_count:
 			break
