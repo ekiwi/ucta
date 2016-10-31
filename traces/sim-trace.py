@@ -204,9 +204,9 @@ R = RegisterBank()
 
 # parse opcode strings
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
-r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxsp\d]+)(, (?P<arg2>[a-frxsp\d]+)(, (?P<arg3>[a-frxsp\d]+))?)?)?$')
+r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxsp\d\-]+)(, (?P<arg2>[a-frxsp\d\-]+)(, (?P<arg3>[a-frxsp\d\-]+))?)?)?$')
 re_ldr_str = re.compile(
-r'(?P<op>(ldr)|(strh?b?)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
+r'(?P<op>((ldr)|(strh?b?))(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 re_ldm_stm = re.compile(
@@ -241,7 +241,7 @@ def is_reg(name):
 
 # itermediate to integer
 def i2i(inp):
-	if inp.startswith('0x'):
+	if inp.startswith('0x') or inp.startswith('-0x'):
 		return int(inp, 16)
 	else:
 		return int(inp)
