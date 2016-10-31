@@ -199,13 +199,13 @@ R = RegisterBank()
 
 # parse opcode strings
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
-r'(?P<op>[a-z]+) ((?P<arg1>[a-flrxsp\d]+)(, (?P<arg2>[a-frxsp\d]+)(, (?P<arg3>[a-frxsp\d]+))?)?)?$')
+r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxsp\d]+)(, (?P<arg2>[a-frxsp\d]+)(, (?P<arg3>[a-frxsp\d]+))?)?)?$')
 re_ldr_str = re.compile(
 r'(?P<op>(ldr)|(strh?b?)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 re_ldm_stm = re.compile(
-r'(?P<op>(ldm)|(stm)) (?P<reg>[r\d+]+)(?P<increment>!)?, \{(?P<args>[a-frxlsp, \d]+)\}$')
+r'(?P<op>((ldm)|(stm))(\.w)?) (?P<reg>[r\d+]+)(?P<increment>!)?, \{(?P<args>[a-frxlsp, \d]+)\}$')
 opregex = [re_reg_arg, re_ldr_str, re_push_pop, re_ldm_stm]
 
 
@@ -250,9 +250,9 @@ def exec(instr):
 	pc = instr['offset']
 	R[15] = pc + 4 if pc % 4 == 0 else pc + 2
 	op = parseop(instr['opcode'])
-	name = op['op']
+	name = op['op'].strip('.w')	# `.w` only matters for the encoding, does not affect semantics
 	args = op['args'] if 'args' in op else None
-	if name.startswith('bl') or name in ['b', 'bne']:
+	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq']:
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
