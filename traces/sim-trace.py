@@ -34,6 +34,20 @@ WordMax = (1<<32) - 1
 # load firmware image
 r2 = r2pipe.open(fw)	# TODO: ugly global
 
+
+class MemoryTransaction:
+	def __init__(self, addr, bytes):
+		self.addr = addr
+		self.bytes = bytes	# this is the "byte count" ... needs a better short name
+class MemoryRead(MemoryTransaction):
+	def __init__(self, addr, bytes):
+		super().__init__(addr, bytes)
+class MemoryWrite(MemoryTransaction):
+	def __init__(self, addr, bytes, value):
+		super().__init__(addr, bytes)
+		self.value = value
+
+
 class MemState(Enum):
 	unknown = 0
 	concrete = 1
@@ -68,91 +82,102 @@ class RegisterBank:
 			cc += 1
 		return out
 
-class Ram:
-	def __init__(self, name, size, offset, word_size=4):
-		self.data = [0]*size
-		self.state = [MemState.unknown] * size
-		self.offset = offset
-		self.shift = int(math.log(word_size, 2))
-	def addr_in_range(self, addr):
-		return addr >= self.offset and addr < self.offset + len(self.data)
-	def __getitem__(self, addr):
-		ii = (addr - self.offset) >> self.shift
+class MemoryBase:
+	def __init__(self, name, start, bytes):
+		self.name = name
+		self.start = start
+		self.bytes = bytes
+	def addr_in_range(self, transaction):
+		return (transaction.addr                     >= self.start and
+		        transaction.addr + transaction.bytes <= self.start + self.bytes)
+	def commit(self, transaction):
+		addr = transaction.addr
+		if isinstance(transaction, MemoryRead):
+			return self.read_bytes(addr, transaction.bytes)
+		elif isinstance(transaction, MemoryWrite):
+			return self.write_bytes(addr, transaction.bytes, transaction.value)
+	def read_bytes(self, addr, bytes):
+		vv = 0
+		for offset in range(0, bytes):
+			vv |= self.read(addr + offset) << (8 * offset)
+		print("0x{:08x} => 0x{:08x}".format(addr, vv))
+		return vv
+	def write_bytes(self, addr, bytes, vv):
+		for offset in range(0, bytes):
+			self.write(addr + offset, (vv >> (8 * offset)) & 0xff)
+		print("0x{:08x} <= 0x{:08x}".format(addr, vv))
+	def read(self, addr):
+		raise Exception("Read method to retrive bytes needs to be implemented!")
+	def write(self, addr, vv):
+		raise Exception("Write method to store bytes needs to be implemented!")
+
+
+class Ram(MemoryBase):
+	def __init__(self, name, start, bytes):
+		super().__init__(name, start, bytes)
+		self.data = [0] * self.bytes
+		self.state = [MemState.unknown] * self.bytes
+	def read(self, addr):
+		ii = addr - self.start
 		if self.state[ii] == MemState.unknown:
 			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(addr))
 		return self.data[ii]
-	def __setitem__(self, addr, vv):
-		ii = (addr - self.offset) >> self.shift
+	def write(self, addr, vv):
+		ii = addr - self.start
+		self.data[ii]  = vv
 		self.state[ii] = MemState.concrete
-		self.data[ii] = vv
 	def print_known_content(self):
-		for ii in range(0, len(self.data)):
-			if self.state[ii] == MemState.unknown: continue
-			addr = (ii << self.shift) + self.offset
-			print('0x{:08x}: 0x{:08x}   '.format(addr, self.data[ii]))
+		for word in range(0, len(self.data) >> 2):
+			byte_range = range(word * 4, word * 4 + 4)
+			if all(self.state[ii] == MemState.unknown for ii in byte_range):
+				continue
+			out = '0x{:08x}: 0x'.format(word * 4 + self.start)
+			for ii in reversed(byte_range):
+				if self.state[ii] == MemState.unknown: out += '??'
+				else: out += '{:02x}'.format(self.data[ii])
+			print(out + '   ')
 
-class Rom:
-	def __init__(self, name, size, offset):
-		self.name = name
-		self.offset = offset
-		self.size = size
-	def addr_in_range(self, addr):
-		return addr >= self.offset and addr < self.offset + self.size
-	def __getitem__(self, ii):
-		hxdump = r2.cmd("pxw 4 @ {}".format(ii))
-		vv = int(re.match(r'0x[a-f\d]+ +(?P<vv>0x[a-f\d]+)', hxdump).group('vv'), 16)
-		return vv
-	def __setitem__(self, ii, vv):
-		raise Exception('Cannt write to Read Only Memory.')
+class Rom(MemoryBase):
+	def __init__(self, name, start, bytes):
+		super().__init__(name, start, bytes)
+	def read(self, addr):
+		return int(r2.cmd("pfv b @ 0x{:08x}".format(addr)), 16)
+	def write(self, addr, vv):
+		raise Exception('Cannot write to Read Only Memory.')
 
 class SymVar:
 	def __init__(self, src):
 		self.src = src
 	def __str__(self): return self.src
 
-class PeripheralMemory:
-	def __init__(self, name, size, offset, word_size=4):
-		self.data = [0]*size
-		self.offset = offset
-		self.size = size
-		self.name = name
-		self.shift = int(math.log(word_size, 2))
-	def addr_in_range(self, addr):
-		return addr >= self.offset and addr < self.offset + self.size
-	def __getitem__(self, addr):
-		ii = (addr - self.offset) >> self.shift
+class PeripheralMemory(Ram):
+	def __init__(self, name, start, bytes):
+		super().__init__(name, start, bytes)
+	def read(self, addr):
 		# TODO: remember that memory location was read
 		# return SymVar("{} @ 0x{:08x}".format(self.name, addr))
 		# TODO: distinguish between symbolic variables and concrete variables
 		#       for now we just always return 0 and hope that the value is never
 		#       used for anything important
 		return 0
-	def __setitem__(self, addr, vv):
-		ii = (addr - self.offset) >> self.shift
+	def write(self, addr, vv):
 		# TODO: remember that memory location was written
-		self.data[ii] = vv
+		ii = addr - self.start
+		self.data[ii]  = vv
 
 class Memory:
 	def __init__(self, *sections):
 		self.sections = sections
-	def __getitem__(self, ii):
-		for sec in self.sections:
-			if sec.addr_in_range(ii):
-				vv = sec[ii]
-				if isinstance(vv, int):
-					print("0x{:08x} => 0x{:08x}".format(ii, vv))
-				else:
-					print("0x{:08x} => {}".format(ii, vv))
-				return vv
-		raise Exception("Invalid read access to addr: 0x{:08x}".format(ii))
-
-	def __setitem__(self, ii, vv):
-		for sec in self.sections:
-			if sec.addr_in_range(ii):
-				print("0x{:08x} <= 0x{:08x}".format(ii, vv))
-				sec[ii] = vv
-				return
-		raise Exception("Invalid write access to addr: 0x{:08x}".format(ii))
+	def commit(self, transaction):
+		assert(isinstance(transaction, MemoryTransaction))
+		sec = next(sec for sec in self.sections if sec.addr_in_range(transaction))
+		return sec.commit(transaction)
+		# TODO: handle cases in which no section is found
+	# convenience methods to create and execute transactions
+	def read(self, addr, size='w'):
+		return self.commit(MemoryRead(addr=addr, bytes={'w':4,'h':2,'b':1}[size]))
+	def write(self, addr, value, size='w'):
+		return self.commit(MemoryWrite(addr=addr, bytes={'w':4,'h':2,'b':1}[size], value=value))
 
 	def print_known_content(self):
 		for sec in self.sections:
@@ -160,15 +185,15 @@ class Memory:
 
 
 mem = Memory(
-	Rom('flash',  size=1024 * 1024, offset=0x08000000),
-	Ram('ccm',    size=  64 * 1024, offset=0x10000000),
-	Ram('sram1',  size= 112 * 1024, offset=0x20000000),
-	Ram('sram2',  size=  16 * 1024, offset=0x2001C000),
-	Ram('backup', size=   4 * 1024, offset=0x40024000),
-	PeripheralMemory('apb1', size=  0x7fff, offset=0x40000000),
-	PeripheralMemory('apb2', size=  0x57ff, offset=0x40010000),
-	PeripheralMemory('ahb1', size= 0x5ffff, offset=0x40020000),
-	PeripheralMemory('ahb2', size= 0x60bff, offset=0x50000000))
+	Rom('flash',  bytes=1024 * 1024, start=0x08000000),
+	Ram('ccm',    bytes=  64 * 1024, start=0x10000000),
+	Ram('sram1',  bytes= 112 * 1024, start=0x20000000),
+	Ram('sram2',  bytes=  16 * 1024, start=0x2001C000),
+	Ram('backup', bytes=   4 * 1024, start=0x40024000),
+	PeripheralMemory('apb1', bytes=  0x7fff, start=0x40000000),
+	PeripheralMemory('apb2', bytes=  0x57ff, start=0x40010000),
+	PeripheralMemory('ahb1', bytes= 0x5ffff, start=0x40020000),
+	PeripheralMemory('ahb2', bytes= 0x60bff, start=0x50000000))
 
 R = RegisterBank()
 
@@ -231,38 +256,28 @@ def exec(instr):
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
-	elif name in ['ldr', 'str']:
+	elif name in ['ldr', 'str', 'strh', 'strb']:
+		size = 'w' if name[-1] == 'r' else name[-1]
 		addr = R[op['addr']]
 		if op['offset'] is not None:
 			addr += value(op['offset'])
 		if name == 'ldr':
-			R[op['reg']] = mem[addr]
+			R[op['reg']] = mem.read(addr, size)
 		else:
-			mem[addr] = R[op['reg']]
-	elif name in ['strh', 'strb']:
-		addr = R[op['addr']]
-		if op['offset'] is not None:
-			addr += value(op['offset'])
-		# TODO: in the Rust version, handle this in the memory class
-		#       instead of generating a 32bit read and write
-		old_value = mem[addr]
-		mask  = {'h': 0xffff, 'b': 0xff}[name[-1]]
-		shift = addr % 4
-		old_mask = 0xffffffff & ~(mask << shift)
-		mem[addr] = (old_value & old_mask) | ((R[op['reg']] & mask) << shift)
+			mem.write(addr, R[op['reg']], size)
 	elif name == 'push':
 		for rr in sorted((r2i(rr) for rr in args), reverse=True):
-			mem[R[r2i('sp')]] = R[rr]
+			mem.write(R[r2i('sp')], R[rr])
 			R[r2i('sp')] = R[r2i('sp')] - 4
 	elif name == 'pop':
 		for rr in sorted(r2i(rr) for rr in args):
 			R[r2i('sp')] = R[r2i('sp')] + 4
-			R[rr] = mem[R[r2i('sp')]]
+			R[rr] = mem.read(R[r2i('sp')])
 	elif name in ['stm', 'ldm']:
 		addr = R[r2i(op['reg'])]
 		for rr in sorted(r2i(rr) for rr in args):
-			if name == 'stm': mem[addr] = R[rr]
-			else            : R[rr] = mem[addr]
+			if name == 'stm': mem.write(addr, R[rr])
+			else            : R[rr] = mem.read(addr)
 			addr += 4
 		if op['increment'] is not None:
 			R[r2i(op['reg'])] = addr
@@ -302,7 +317,7 @@ for reg in sys.argv[3:]:
 	else:
 		raise Exception("Invalid register init parameter `{}`. Try e.g. sp=0x123".format(reg))
 if load_sp_from_rom:
-	R['sp'] = mem[0x08000000]
+	R['sp'] = mem.read(0x08000000)
 
 with open(pc) as ff:
 	for line in ff.readlines():
