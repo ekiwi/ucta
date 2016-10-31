@@ -288,12 +288,13 @@ def exec(instr):
 			R[r2i(op['reg'])] = addr
 	elif name.startswith('mov'):
 		R[args[0]] = value(args[1])
-	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls']:
+	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls', 'orr']:
 		name = name[:-1] if name[-1] == 's' else name
 		operation = {
 			'add': lambda a,b: a + b,
 			'sub': lambda a,b: a - b,
 			'lsl': lambda a,b: a << b,
+			'orr': lambda a,b: a | b,
 		}[name]
 		if len(args) > 2:
 			R[args[0]] = operation(value(args[1]), value(args[2])) & WordMax
