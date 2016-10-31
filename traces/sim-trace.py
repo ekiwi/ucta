@@ -61,7 +61,10 @@ class RegisterBank:
 				out += '\n'
 				cc = 0
 			if self.state[ii] == MemState.unknown: continue
-			out += 'r{}: 0x{:08x}   '.format(ii, self.data[ii])
+			if isinstance(self.data[ii], int):
+				out += 'r{}: 0x{:08x}   '.format(ii, self.data[ii])
+			else:
+				out += 'r{}: {}   '.format(ii, self.data[ii])
 			cc += 1
 		return out
 
@@ -102,6 +105,33 @@ class Rom:
 	def __setitem__(self, ii, vv):
 		raise Exception('Cannt write to Read Only Memory.')
 
+class SymVar:
+	def __init__(self, src):
+		self.src = src
+	def __str__(self): return self.src
+
+class PeripheralMemory:
+	def __init__(self, name, size, offset, word_size=4):
+		self.data = [0]*size
+		self.offset = offset
+		self.size = size
+		self.name = name
+		self.shift = int(math.log(word_size, 2))
+	def addr_in_range(self, addr):
+		return addr >= self.offset and addr < self.offset + self.size
+	def __getitem__(self, addr):
+		ii = (addr - self.offset) >> self.shift
+		# TODO: remember that memory location was read
+		# return SymVar("{} @ 0x{:08x}".format(self.name, addr))
+		# TODO: distinguish between symbolic variables and concrete variables
+		#       for now we just always return 0 and hope that the value is never
+		#       used for anything important
+		return 0
+	def __setitem__(self, addr, vv):
+		ii = (addr - self.offset) >> self.shift
+		# TODO: remember that memory location was written
+		self.data[ii] = vv
+
 class Memory:
 	def __init__(self, *sections):
 		self.sections = sections
@@ -109,7 +139,10 @@ class Memory:
 		for sec in self.sections:
 			if sec.addr_in_range(ii):
 				vv = sec[ii]
-				print("0x{:08x} => 0x{:08x}".format(ii, vv))
+				if isinstance(vv, int):
+					print("0x{:08x} => 0x{:08x}".format(ii, vv))
+				else:
+					print("0x{:08x} => {}".format(ii, vv))
 				return vv
 		raise Exception("Invalid read access to addr: 0x{:08x}".format(ii))
 
@@ -131,7 +164,11 @@ mem = Memory(
 	Ram('ccm',    size=  64 * 1024, offset=0x10000000),
 	Ram('sram1',  size= 112 * 1024, offset=0x20000000),
 	Ram('sram2',  size=  16 * 1024, offset=0x2001C000),
-	Ram('backup', size=   4 * 1024, offset=0x40024000))
+	Ram('backup', size=   4 * 1024, offset=0x40024000),
+	PeripheralMemory('apb1', size=  0x7fff, offset=0x40000000),
+	PeripheralMemory('apb2', size=  0x57ff, offset=0x40010000),
+	PeripheralMemory('ahb1', size= 0x5ffff, offset=0x40020000),
+	PeripheralMemory('ahb2', size= 0x60bff, offset=0x50000000))
 
 R = RegisterBank()
 
@@ -139,7 +176,7 @@ R = RegisterBank()
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
 r'(?P<op>[a-z]+) ((?P<arg1>[a-flrxsp\d]+)(, (?P<arg2>[a-frxsp\d]+)(, (?P<arg3>[a-frxsp\d]+))?)?)?$')
 re_ldr_str = re.compile(
-r'(?P<op>(ldr)|(str)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
+r'(?P<op>(ldr)|(strh?b?)) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 re_ldm_stm = re.compile(
@@ -202,6 +239,17 @@ def exec(instr):
 			R[op['reg']] = mem[addr]
 		else:
 			mem[addr] = R[op['reg']]
+	elif name in ['strh', 'strb']:
+		addr = R[op['addr']]
+		if op['offset'] is not None:
+			addr += value(op['offset'])
+		# TODO: in the Rust version, handle this in the memory class
+		#       instead of generating a 32bit read and write
+		old_value = mem[addr]
+		mask  = {'h': 0xffff, 'b': 0xff}[name[-1]]
+		shift = addr % 4
+		old_mask = 0xffffffff & ~(mask << shift)
+		mem[addr] = (old_value & old_mask) | ((R[op['reg']] & mask) << shift)
 	elif name == 'push':
 		for rr in sorted((r2i(rr) for rr in args), reverse=True):
 			mem[R[r2i('sp')]] = R[rr]
