@@ -326,17 +326,24 @@ if load_sp_from_rom:
 	R['sp'] = mem.read(0x08000000)
 
 with open(pc) as ff:
+	last_instr = None
 	for line in ff.readlines():
 		if not line.startswith('PC '):
 			print("Unknown line: {}".format(line))
 			continue
-		addr = line[3:].strip()
-		instr = r2.cmdj("pdj 1 @ {}".format(addr))[0]
+		addr = int(line[3:].strip(), 16)
+		instr = r2.cmdj("pdj 1 @ 0x{:08x}".format(addr))[0]
+		# check if this is a plausible pc value
+		if last_instr:
+			if (instr['offset'] > last_instr['offset'] and
+			    instr['offset'] < last_instr['offset'] + last_instr['size']):
+				raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
 		print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], parseop(instr['opcode'])))
 		exec(instr)
 		instr_count += 1
 		if instr_count >= max_instr_count:
 			break
+		last_instr = instr
 
 mem.print_known_content()
 
