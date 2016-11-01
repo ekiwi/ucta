@@ -210,7 +210,7 @@ R = RegisterBank()
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
 r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxspi\d\-]+)(, (?P<arg2>[a-frxspi\d\-]+)(, (?P<arg3>[a-frxspi\d\-]+(, lsl [\d\-])?))?)?)?$')
 re_ldr_str = re.compile(
-r'(?P<op>((ldr)|(str))h?b?(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxpsi\d]+)(, (?P<offset>[a-fxr\d]+(, lsl [\d\-])?))?\](, (?P<post>\d+))?$')
+r'(?P<op>((ldr)|(str))h?b?(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxpsi\d]+)(, (?P<offset>[a-fxr\d]+(, lsl [\d\-])?))?\](?P<pre>!)?(, (?P<post>\d+))?$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 re_ldm_stm = re.compile(
@@ -268,7 +268,7 @@ def exec(instr):
 	op = parseop(instr['opcode'])
 	name = op['op'].strip('.w')	# `.w` only matters for the encoding, does not affect semantics
 	args = op['args'] if 'args' in op else None
-	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq', 'bx']:
+	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq', 'bx', 'bgt']:
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
@@ -283,6 +283,8 @@ def exec(instr):
 			mem.write(addr, R[op['reg']], size)
 		if op['post'] is not None:
 			R[op['addr']] = R[op['addr']] + i2i(op['post'])
+		if op['pre'] is not None:   # the pre increment was already handled by the offset addition
+			R[op['addr']] = addr    # but we still need to store the new address
 	elif name == 'push':
 		for rr in sorted((r2i(rr) for rr in args), reverse=True):
 			mem.write(R[r2i('sp')], R[rr])
