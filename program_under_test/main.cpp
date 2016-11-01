@@ -1,6 +1,7 @@
 #include <xpcc/architecture/platform.hpp>
 
 void buggy_function(const uint8_t* packet) {
+	asm volatile("");  // force gcc to keep function
 	char buffer[8];
 	const uint8_t length = packet[0];
 	std::memcpy(buffer, packet + 1, length);
@@ -15,7 +16,7 @@ void secret_function() {
 }
 
 
-volatile int enable_sec = 0;
+volatile int dummy_against_inlining = 0;
 
 int
 main()
@@ -32,7 +33,7 @@ main()
 	Board::LedRed::setOutput();
 	Board::LedGreen::setOutput();
 
-	if(enable_sec) {
+	if(dummy_against_inlining) {
 		secret_function();
 	}
 
