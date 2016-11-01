@@ -2,8 +2,8 @@
 
 uint8_t buggy_function(const uint8_t* packet) {
 	char buffer[8];
-	const uint8_t length = packet[1];
-	std::memcpy(buffer, packet + 2, length);
+	const uint8_t length = packet[0];
+	std::memcpy(buffer, packet + 1, length);
 	uint8_t sum = 0;
 	for(int ii = 0; ii < 8; ++ii) {
 		sum += buffer[ii];
@@ -41,11 +41,11 @@ main()
 		secret_function();
 	}
 
-	const uint8_t good_inp [2+8] = {0xff, 8, '0', '1', '2', '3', '4', '5', '6', '7'};
+	const uint8_t good_inp [1+8] = {8, '0', '1', '2', '3', '4', '5', '6', '7'};
 	buggy_function(good_inp);
 
 	// 0xaa for padding; addr: 0x80003a4
-	const uint8_t bad_inp [2+8+8] = {0xff, 8 + 8, '0', '1', '2', '3', '4', '5', '6', '7', 0xaa, 0xaa, 0xaa, 0xaa, 0xa4, 0x03, 0x00, 0x80};
+	const uint8_t bad_inp [1+8+8] = {8 + 8, '0', '1', '2', '3', '4', '5', '6', '7', 0xaa, 0xaa, 0xaa, 0xaa, 0xa4, 0x03, 0x00, 0x80};
 	buggy_function(bad_inp);
 
 
