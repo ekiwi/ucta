@@ -20,6 +20,22 @@ for more information about asm syntax see:
 http://www.ethernut.de/en/documents/arm-inline-asm.html
 """
 
+################################################################################
+# Analysis
+
+return_addr_locs = []
+
+def on_store(addr, value, src_reg, pc, instr_count):
+	if addr in return_addr_locs:
+		raise Exception("Return address overwriten with 0x{:08x} @ pc=0x{:08x}".format(value, pc))
+	elif src_reg == 14:
+		return_addr_locs.append(addr)
+
+def on_load(addr, value, dst_reg, pc, instr_count):
+	if addr in return_addr_locs:
+		return_addr_locs.remove(addr)
+
+################################################################################
 
 import re, math, sys, shutil
 from enum import Enum
@@ -284,8 +300,10 @@ def exec(instr):
 			addr += value(op['offset'])
 		if name.startswith('ldr'):
 			R[op['reg']] = mem.read(addr, size)
+			on_load(addr=addr, value=R[op['reg']], dst_reg=r2i(op['reg']), pc=pc, instr_count=instr_count)
 		else:
 			mem.write(addr, R[op['reg']], size)
+			on_store(addr=addr, value=R[op['reg']], src_reg=r2i(op['reg']), pc=pc, instr_count=instr_count)
 		if op['post'] is not None:
 			R[op['addr']] = R[op['addr']] + i2i(op['post'])
 		if op['pre'] is not None:   # the pre increment was already handled by the offset addition
@@ -293,16 +311,22 @@ def exec(instr):
 	elif name == 'push':
 		for rr in sorted((r2i(rr) for rr in args), reverse=True):
 			mem.write(R[r2i('sp')], R[rr])
+			on_store(addr=R[r2i('sp')], value=R[rr], src_reg=r2i(rr), pc=pc, instr_count=instr_count)
 			R[r2i('sp')] = R[r2i('sp')] - 4
 	elif name == 'pop':
 		for rr in sorted(r2i(rr) for rr in args):
 			R[r2i('sp')] = R[r2i('sp')] + 4
 			R[rr] = mem.read(R[r2i('sp')])
+			on_load(addr=R[r2i('sp')], value=R[rr], dst_reg=r2i(rr), pc=pc, instr_count=instr_count)
 	elif name in ['stm', 'ldm']:
 		addr = R[r2i(op['reg'])]
 		for rr in sorted(r2i(rr) for rr in args):
-			if name == 'stm': mem.write(addr, R[rr])
-			else            : R[rr] = mem.read(addr)
+			if name == 'stm':
+				mem.write(addr, R[rr])
+				on_store(addr=addr, value=R[rr], src_reg=r2i(rr), pc=pc, instr_count=instr_count)
+			else:
+				R[rr] = mem.read(addr)
+				on_load(addr=addr, value=R[rr], dst_reg=r2i(rr), pc=pc, instr_count=instr_count)
 			addr += 4
 		if op['increment'] is not None:
 			R[r2i(op['reg'])] = addr
