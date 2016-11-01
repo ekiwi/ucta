@@ -11,9 +11,13 @@ are zero when we start, except for `r` of cause which is the `pc`
 
 ## notes about ISA
 * general purpose registers: `R0-R12`
+* Temporary Work Register (`ip`): R12
 * stack pointer: `R13`
 * link register (return address): `R14`
 * program counter: `R15`
+
+for more information about asm syntax see:
+http://www.ethernut.de/en/documents/arm-inline-asm.html
 """
 
 
@@ -204,9 +208,9 @@ R = RegisterBank()
 
 # parse opcode strings
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
-r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxsp\d\-]+)(, (?P<arg2>[a-frxsp\d\-]+)(, (?P<arg3>[a-frxsp\d\-]+))?)?)?$')
+r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxspi\d\-]+)(, (?P<arg2>[a-frxspi\d\-]+)(, (?P<arg3>[a-frxspi\d\-]+(, lsl [\d\-])?))?)?)?$')
 re_ldr_str = re.compile(
-r'(?P<op>((ldr)|(strh?b?))(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxps\d]+)(, (?P<offset>[a-fxr\d]+))?\]$')
+r'(?P<op>((ldr)|(strh?b?))(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxpsi\d]+)(, (?P<offset>[a-fxr\d]+(, lsl [\d\-])?))?\]$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 re_ldm_stm = re.compile(
@@ -234,10 +238,10 @@ def r2i(name):
 	elif re.match(r'r(\d)|(1\d)$', name):
 		return int(name[1:])
 	else:
-		return {'sp': 13, 'lr': 14, 'pc': 15}[name]
+		return {'ip':12, 'sp': 13, 'lr': 14, 'pc': 15}[name]
 
 def is_reg(name):
-	return re.match(r'(r(\d)|(1\d))|(sp)|(lr)|(pc)$', name) is not None
+	return re.match(r'((r(\d)|(1\d))|(sp)|(lr)|(pc)|(ip))$', name) is not None
 
 # itermediate to integer
 def i2i(inp):
@@ -247,8 +251,15 @@ def i2i(inp):
 		return int(inp)
 
 # either read from register or return itermediate
+re_lsl = re.compile(r'(?P<reg>[rsplc\d]+), lsl (?P<lsl>\d)$')
 def value(arg):
-	return R[arg] if is_reg(arg) else i2i(arg)
+	if is_reg(arg):
+		return R[arg]
+	elif re_lsl.match(arg):
+		m = re_lsl.match(arg).groupdict()
+		return (R[m['reg']] << i2i(m['lsl'])) & WordMax
+	else:
+		return i2i(arg)
 
 def exec(instr):
 	# 4 byte aligned pc used for address calculations
@@ -257,7 +268,7 @@ def exec(instr):
 	op = parseop(instr['opcode'])
 	name = op['op'].strip('.w')	# `.w` only matters for the encoding, does not affect semantics
 	args = op['args'] if 'args' in op else None
-	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq']:
+	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq', 'bx']:
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
@@ -288,13 +299,15 @@ def exec(instr):
 			R[r2i(op['reg'])] = addr
 	elif name.startswith('mov'):
 		R[args[0]] = value(args[1])
-	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls', 'orr']:
+	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls', 'orr', 'and', 'ands', 'asr', 'asrs']:
 		name = name[:-1] if name[-1] == 's' else name
 		operation = {
 			'add': lambda a,b: a + b,
 			'sub': lambda a,b: a - b,
 			'lsl': lambda a,b: a << b,
+			'asr': lambda a,b: a >> b,
 			'orr': lambda a,b: a | b,
+			'and': lambda a,b: a & b,
 		}[name]
 		if len(args) > 2:
 			R[args[0]] = operation(value(args[1]), value(args[2])) & WordMax
