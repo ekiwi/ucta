@@ -32,6 +32,9 @@ if len(sys.argv) < 4:
 pc = sys.argv[1]
 fw = sys.argv[2]
 
+print_instr = False
+print_regs  = False
+print_mem   = True
 
 WordMax = (1<<32) - 1
 
@@ -104,12 +107,14 @@ class MemoryBase:
 		vv = 0
 		for offset in range(0, bytes):
 			vv |= self.read(addr + offset) << (8 * offset)
-		print("0x{:08x} => 0x{:08x}".format(addr, vv))
+		if print_mem:
+			print("0x{:08x} => 0x{:08x}".format(addr, vv))
 		return vv
 	def write_bytes(self, addr, bytes, vv):
 		for offset in range(0, bytes):
 			self.write(addr + offset, (vv >> (8 * offset)) & 0xff)
-		print("0x{:08x} <= 0x{:08x}".format(addr, vv))
+		if print_mem:
+			print("0x{:08x} <= 0x{:08x}".format(addr, vv))
 	def read(self, addr):
 		raise Exception("Read method to retrive bytes needs to be implemented!")
 	def write(self, addr, vv):
@@ -268,7 +273,7 @@ def exec(instr):
 	op = parseop(instr['opcode'])
 	name = op['op'].strip('.w')	# `.w` only matters for the encoding, does not affect semantics
 	args = op['args'] if 'args' in op else None
-	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq', 'bx', 'bgt']:
+	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq', 'bx', 'bgt', 'bhi']:
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
@@ -303,7 +308,7 @@ def exec(instr):
 			R[r2i(op['reg'])] = addr
 	elif name.startswith('mov'):
 		R[args[0]] = value(args[1])
-	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls', 'orr', 'and', 'ands', 'asr', 'asrs']:
+	elif name in ['add', 'adds', 'sub', 'subs', 'lsl', 'lsls', 'orr', 'orrs', 'and', 'ands', 'asr', 'asrs']:
 		name = name[:-1] if name[-1] == 's' else name
 		operation = {
 			'add': lambda a,b: a + b,
@@ -319,8 +324,8 @@ def exec(instr):
 			R[args[0]] = operation(value(args[0]), value(args[1])) & WordMax
 	else:
 		print("\033[31mTODO\033[0m: handle operation `{}`".format(op['op']))
-
-	print(R)
+	if print_regs:
+		print(R)
 
 
 
@@ -355,7 +360,8 @@ with open(pc) as ff:
 			if (instr['offset'] > last_instr['offset'] and
 			    instr['offset'] < last_instr['offset'] + last_instr['size']):
 				raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
-		print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], parseop(instr['opcode'])))
+		if print_instr:
+			print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], parseop(instr['opcode'])))
 		exec(instr)
 		instr_count += 1
 		if instr_count >= max_instr_count:
