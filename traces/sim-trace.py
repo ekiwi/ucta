@@ -210,7 +210,7 @@ R = RegisterBank()
 re_reg_arg = re.compile(	# parses opcodes with up to 3 arguments
 r'(?P<op>[a-z]+(\.w)?) ((?P<arg1>[a-flrxspi\d\-]+)(, (?P<arg2>[a-frxspi\d\-]+)(, (?P<arg3>[a-frxspi\d\-]+(, lsl [\d\-])?))?)?)?$')
 re_ldr_str = re.compile(
-r'(?P<op>((ldr)|(strh?b?))(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxpsi\d]+)(, (?P<offset>[a-fxr\d]+(, lsl [\d\-])?))?\]$')
+r'(?P<op>((ldr)|(str))h?b?(\.w)?) (?P<reg>[r\d+]+), \[(?P<addr>[a-frxpsi\d]+)(, (?P<offset>[a-fxr\d]+(, lsl [\d\-])?))?\](, (?P<post>\d+))?$')
 re_push_pop = re.compile(
 r'(?P<op>(push)|(pop)) \{(?P<args>[a-frxlsp, \d]+)\}$')
 re_ldm_stm = re.compile(
@@ -272,15 +272,17 @@ def exec(instr):
 		pass # skip branching instructions
 	elif name in ['cmp']:
 		pass # skip instructions that are currently nops in our coarse model
-	elif name in ['ldr', 'str', 'strh', 'strb']:
+	elif name in ['ldr', 'ldrh', 'ldrb', 'str', 'strh', 'strb']:
 		size = 'w' if name[-1] == 'r' else name[-1]
 		addr = R[op['addr']]
 		if op['offset'] is not None:
 			addr += value(op['offset'])
-		if name == 'ldr':
+		if name.startswith('ldr'):
 			R[op['reg']] = mem.read(addr, size)
 		else:
 			mem.write(addr, R[op['reg']], size)
+		if op['post'] is not None:
+			R[op['addr']] = R[op['addr']] + i2i(op['post'])
 	elif name == 'push':
 		for rr in sorted((r2i(rr) for rr in args), reverse=True):
 			mem.write(R[r2i('sp')], R[rr])
