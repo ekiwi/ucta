@@ -282,11 +282,11 @@ def value(arg):
 	else:
 		return i2i(arg)
 
-def exec(instr):
+def exec(offset, opcode):
 	# 4 byte aligned pc used for address calculations
-	pc = instr['offset']
+	pc = offset
 	R[15] = pc + 4 if pc % 4 == 0 else pc + 2
-	op = parseop(instr['opcode'])
+	op = parseop(opcode)
 	name = op['op'].strip('.w')	# `.w` only matters for the encoding, does not affect semantics
 	args = op['args'] if 'args' in op else None
 	if name.startswith('bl') or name in ['b', 'bne', 'bhs', 'beq', 'bx', 'bgt', 'bhi']:
@@ -386,7 +386,7 @@ with open(pc) as ff:
 				raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
 		if print_instr:
 			print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], parseop(instr['opcode'])))
-		exec(instr)
+		exec(offset=instr['offset'], opcode=instr['opcode'])
 		instr_count += 1
 		if instr_count >= max_instr_count:
 			break
