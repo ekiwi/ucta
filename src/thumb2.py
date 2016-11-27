@@ -72,13 +72,6 @@ def r2i(name):
 def is_reg(name):
 	return re.match(r'((r(\d)|(1\d))|(sp)|(lr)|(pc)|(ip))$', name) is not None
 
-# itermediate to integer
-def i2i(inp):
-	if inp.startswith('0x') or inp.startswith('-0x'):
-		return int(inp, 16)
-	else:
-		return int(inp)
-
 # either read from register or return itermediate
 re_lsl = re.compile(r'(?P<reg>[rsplc\d]+), lsl (?P<lsl>\d)$')
 
@@ -94,9 +87,9 @@ class Thumb2Execution:
 			return self.R[arg]
 		elif re_lsl.match(arg):
 			m = re_lsl.match(arg).groupdict()
-			return (self.R[m['reg']] << i2i(m['lsl'])) & WordMax
+			return (self.R[m['reg']] << int(m['lsl'], 0)) & WordMax
 		else:
-			return i2i(arg)
+			return int(arg, 0)
 
 	def exec(self, offset, opcode):
 		# 4 byte aligned pc used for address calculations
@@ -121,7 +114,7 @@ class Thumb2Execution:
 				self.mem.write(addr, self.R[op['reg']], size)
 				# on_store(addr=addr, value=self.R[op['reg']], src_reg=r2i(op['reg']), pc=pc, instr_count=instr_count)
 			if op['post'] is not None:
-				self.R[op['addr']] = self.R[op['addr']] + i2i(op['post'])
+				self.R[op['addr']] = self.R[op['addr']] + int(op['post'], 0)
 			if op['pre'] is not None:   # the pre increment was already handled by the offset addition
 				self.R[op['addr']] = addr    # but we still need to store the new address
 		elif name == 'push':
