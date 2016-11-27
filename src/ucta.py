@@ -30,12 +30,13 @@ from program import Program
 class Ucta:
 	def __init__(self, prog, mem, regs, ExecutionEngine):
 		self.prog = prog
-		self.print_instr = False
-		self.print_regs  = False
+		self.print_instr = True
+		self.print_regs  = True
 		self.print_mem   = True
 		self.max_instr_count = 30000
 		self.instr_count = 0
 		self.exe = ExecutionEngine(mem, regs)
+		self.regs = regs
 
 	def run(self, pc, fw):
 		with open(pc) as ff:
@@ -52,16 +53,16 @@ class Ucta:
 						instr['offset'] < last_instr['offset'] + last_instr['size']):
 						raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
 				if self.print_instr:
-					print("\033[1m0x{:02x}\033[0m: {} => {}".format(instr['offset'], instr['opcode'], parseop(instr['opcode'])))
+					print("\033[1m0x{:02x}\033[0m: {}".format(instr['offset'], instr['opcode']))
 				self.exe.exec(offset=instr['offset'], opcode=instr['opcode'])
-				if self.print_regs: print(R)
+				if self.print_regs: print(self.regs)
 				self.instr_count += 1
 				if self.instr_count >= self.max_instr_count:
 					break
 				last_instr = instr
 
 	def quit(self):
-		self.prog.quit()
+		self.prog.close()
 
 if __name__ == "__main__":
 	# load command line arguments

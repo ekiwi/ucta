@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Copyright 2016 by Kevin Läufer <kevin.laeufer@rwth-aachen.de>
 """
 
+import shutil
 from enum import Enum
 from thumb2 import r2i # TODO: move to common file
 

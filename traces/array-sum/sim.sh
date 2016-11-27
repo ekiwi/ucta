@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-../sim-trace.py pc target-fw.elf sp=0x10000b28
+../../src/ucta.py pc target-fw.elf sp=0x10000b28
