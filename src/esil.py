@@ -69,10 +69,10 @@ class EsilExecution:
 			'=' : lambda t,stack: self.save_to_reg(stack.pop(), stack),
 		}
 		self.add_commands(self.compare, ['==','<','<=','>','>='])
-		self.bin_op_tokens = ['<<','>>','<<<','>>>','&','^','+','-','*','/','%']
+		self.bin_op_tokens = ['<<','>>','<<<','>>>','&','|','^','+','-','*','/','%']
 		self.add_commands(self.bin_op, self.bin_op_tokens)
 		self.add_commands(self.unary_op, ['!', '++', '--'])
-		self.add_commands(self.reg_op, ['+=','-=','*=','/=','%=','<<=','>>=','&=','^=','++=','--=','!='])
+		self.add_commands(self.reg_op, ['+=','-=','*=','/=','%=','<<=','>>=','&=','|=','^=','++=','--=','!='])
 		self.add_commands(self.store, ['=[' + t + ']' for t in ['', '1', '2', '4', '8']])
 		self.add_commands(self.store_multiple, ['=[*]'])
 		self.add_commands(self.load,  [ '[' + t + ']' for t in ['', '1', '2', '4', '8']])
@@ -90,7 +90,7 @@ class EsilExecution:
 		if instr['type'] in ['cjmp']:
 			return # unsupported instructions
 		stack = []
-		print(instr['esil'])
+		#print(instr['esil'])
 		for token in instr['esil'].split(','):
 			if token in self.esil_commands:
 				self.esil_commands[token](token, stack)
@@ -122,6 +122,7 @@ class EsilExecution:
 			'<<<': lambda a,b: (a << b) | (a >> (ws - b)),
 			'>>>': lambda a,b: (a >> b) | (a << (ws - b)),
 			'&'  : lambda a,b: a & b,
+			'|'  : lambda a,b: a | b,
 			'^'  : lambda a,b: a ^ b,
 			'+'  : lambda a,b: a + b,
 			'-'  : lambda a,b: a - b,
