@@ -33,6 +33,21 @@ WordSize = 32
 WordMax  = (1 << WordSize) - 1
 
 
+# this fixes any bugs that I found in the ESIL emitter of radare2
+# these fixes should be contributed back some time, but not today...
+from thumb2 import re_ldr_str
+import sys
+def patch_esil(instr):
+	op = instr['opcode']
+	m = re_ldr_str.match(op)
+	# somehow radare2 ignores the post increment flag of ldr/str instructions
+	if m and m.group('post'):
+		fix = ',{},{},+='.format(m.group('post'), m.group('addr'))
+		#print("PATCH: {}".format(instr['esil']))
+		instr['esil'] += fix
+		#print("=> {}".format(instr['esil']))
+		#sys.exit(1)
+
 # register to index
 def r2i(name):
 	if isinstance(name, int):
@@ -58,8 +73,10 @@ class EsilExecution:
 		self.add_commands(self.bin_op, self.bin_op_tokens)
 		self.add_commands(self.unary_op, ['!', '++', '--'])
 		self.add_commands(self.reg_op, ['+=','-=','*=','/=','%=','<<=','>>=','&=','^=','++=','--=','!='])
-		self.add_commands(self.store, ['=[' + t + ']' for t in ['', '*', '1', '2', '4', '8']])
-		self.add_commands(self.load,  [ '[' + t + ']' for t in ['', '*', '1', '2', '4', '8']])
+		self.add_commands(self.store, ['=[' + t + ']' for t in ['', '1', '2', '4', '8']])
+		self.add_commands(self.store_multiple, ['=[*]'])
+		self.add_commands(self.load,  [ '[' + t + ']' for t in ['', '1', '2', '4', '8']])
+		self.add_commands(self.load_multiple, ['[*]'])
 		self.add_commands(self.not_implemented_yet,
 			['TRAP', '$', 'SWAP', 'PICK', 'RPICK', 'DUP', 'NUM', 'CLEAR', 'BREAK', 'GOTO', 'TODO'])
 
@@ -68,6 +85,7 @@ class EsilExecution:
 			self.esil_commands[tok] = cmd
 
 	def exec(self, instr):
+		patch_esil(instr)
 		self.R[15] = instr['offset']
 		if instr['type'] in ['cjmp']:
 			return # unsupported instructions
@@ -139,18 +157,41 @@ class EsilExecution:
 	def load(self, token, stack):
 		bytes = token[1:-1]
 		addr = self.value(stack.pop())
-		if bytes == '*':
-			bytes = stack.pop()
 		c = self.mem.read(addr, size=int(bytes))
 		stack.append(c)
 
 	def store(self, token, stack):
 		bytes = token[2:-1]
 		addr = self.value(stack.pop())
-		if bytes == '*':
-			bytes = stack.pop()
 		value = self.value(stack.pop())
 		self.mem.write(addr, value, size=int(bytes))
+
+	def load_multiple(self, token, stack):
+		# from radare2 (`libr/anal/p/anal_arm_cs.s`):
+		# POP { r4,r5, r6}
+		# r4,r5,r6,3,sp,[*],12,sp,+=
+		addr = self.value(stack.pop())
+		count = int(stack.pop())
+		regs = [stack.pop() for ii in range(0,count)]
+		for reg in regs:
+			self.R[reg] = self.mem.read(addr, size=4)
+			addr += 4
+
+	def store_multiple(self, token, stack):
+		# from radare2 (`libr/anal/p/anal_arm_cs.s`):
+		# PUSH { r4, r5, r6, r7, lr }
+		# 4,sp,-=,lr,sp,=[4],
+		# 4,sp,-=,r7,sp,=[4],
+		# 4,sp,-=,r6,sp,=[4],
+		# 4,sp,-=,r5,sp,=[4],
+		# 4,sp,-=,r4,sp,=[4]
+		# 20,sp,-=,r4,r5,r6,r7,lr,5,sp,=[*]
+		addr = self.value(stack.pop())
+		count = int(stack.pop())
+		regs = [stack.pop() for ii in range(0,count)]
+		for reg in regs:
+			self.mem.write(addr, self.R[reg], size=4)
+			addr += 4
 
 	def not_implemented_yet(self, token, stack):
 		raise Exception("Esil instruction `{}` has not been implemented yet!".format(token))
