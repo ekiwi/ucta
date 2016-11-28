@@ -43,7 +43,7 @@ def r2i(name):
 		return {'ip':12, 'sp': 13, 'lr': 14, 'pc': 15}[name]
 
 def is_reg(name):
-	return re.match(r'((r(\d)|(1\d))|(sp)|(lr)|(pc)|(ip))$', name) is not None
+	return re.match(r'((r((\d)|(1\d)))|(sp)|(lr)|(pc)|(ip))$', name) is not None
 
 class EsilExecution:
 	def __init__(self, mem, regs):
