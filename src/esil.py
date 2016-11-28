@@ -35,16 +35,32 @@ WordMax  = (1 << WordSize) - 1
 
 # this fixes any bugs that I found in the ESIL emitter of radare2
 # these fixes should be contributed back some time, but not today...
-from thumb2 import re_ldr_str
+from thumb2 import re_ldr_str, re_ldm_stm
 import sys
 def patch_esil(instr):
 	op = instr['opcode']
-	m = re_ldr_str.match(op)
 	# somehow radare2 ignores the post increment flag of ldr/str instructions
+	m = re_ldr_str.match(op)
 	if m and m.group('post'):
 		fix = ',{},{},+='.format(m.group('post'), m.group('addr'))
 		#print("PATCH: {}".format(instr['esil']))
 		instr['esil'] += fix
+		#print("=> {}".format(instr['esil']))
+		#sys.exit(1)
+	# the radare2 implementation of stm/ldm seems buggy
+	m = re_ldm_stm.match(op)
+	if m:
+		cmds = []
+		op = m.groupdict()
+		args = op['args'].split(", ")
+		for arg in args:
+			if   op['op'] == 'stm': cmds.append('{},{},=[4]'.format(arg, op['reg']))
+			elif op['op'] == 'ldm': cmds.append('{},[4],{},='.format(op['reg'], arg))
+			else: raise Exception('unhandled op code `{}`'.format(op['op']))
+		if op['increment'] is not None:
+			cmds.append('{},{},+='.format(4 * len(args), op['reg']))
+		#print("PATCH: {}".format(instr['esil']))
+		instr['esil'] = ','.join(cmds)
 		#print("=> {}".format(instr['esil']))
 		#sys.exit(1)
 
@@ -90,7 +106,7 @@ class EsilExecution:
 		if instr['type'] in ['cjmp']:
 			return # unsupported instructions
 		stack = []
-		#print(instr['esil'])
+		print(instr['esil'])
 		for token in instr['esil'].split(','):
 			if token in self.esil_commands:
 				self.esil_commands[token](token, stack)
