@@ -25,15 +25,16 @@ from enum import Enum
 from thumb2 import r2i # TODO: move to common file
 
 class MemoryTransaction:
-	def __init__(self, addr, bytes):
+	def __init__(self, addr, bytes, instr):
 		self.addr = addr
 		self.bytes = bytes	# this is the "byte count" ... needs a better short name
+		self.instr = instr
 class MemoryRead(MemoryTransaction):
-	def __init__(self, addr, bytes):
-		super().__init__(addr, bytes)
+	def __init__(self, addr, bytes, instr):
+		super().__init__(addr, bytes, instr)
 class MemoryWrite(MemoryTransaction):
-	def __init__(self, addr, bytes, value):
-		super().__init__(addr, bytes)
+	def __init__(self, addr, bytes, value, instr):
+		super().__init__(addr, bytes, instr)
 		self.value = value
 
 
@@ -47,14 +48,18 @@ class RegisterBank:
 		self.name = 'regs'
 		self.data = [0] * count
 		self.state = [MemState.unknown] * count
+		self.last_mod = [-1] * count
+		self.current_instruction = -1		# needs to be updated before accessing mempry
 	def __getitem__(self, ii):
 		ii = r2i(ii)
 		if self.state[ii] == MemState.unknown:
 			raise Exception("Cannot read from r{}: value unknown".format(ii))
 		return self.data[ii]
 	def __setitem__(self, ii, vv):
-		self.state[r2i(ii)] = MemState.concrete
-		self.data[r2i(ii)] = vv
+		ii = r2i(ii)
+		self.state[ii] = MemState.concrete
+		self.last_mod[ii] = self.current_instruction
+		self.data[ii] = vv
 	def __str__(self):
 		cols = int(shutil.get_terminal_size((80, 20)).columns / len(self.data))
 		out = ''
@@ -65,9 +70,9 @@ class RegisterBank:
 				cc = 0
 			if self.state[ii] == MemState.unknown: continue
 			if isinstance(self.data[ii], int):
-				out += 'r{}: 0x{:08x}   '.format(ii, self.data[ii])
+				out += 'r{}: 0x{:08x} (@{: 6})   '.format(ii, self.data[ii], self.last_mod[ii])
 			else:
-				out += 'r{}: {}   '.format(ii, self.data[ii])
+				out += 'r{}: {} (@{: 6})   '.format(ii, self.data[ii], self.last_mod[ii])
 			cc += 1
 		return out
 
@@ -83,19 +88,19 @@ class MemoryBase:
 	def commit(self, transaction):
 		addr = transaction.addr
 		if isinstance(transaction, MemoryRead):
-			return self.read_bytes(addr, transaction.bytes)
+			return self.read_bytes(addr, transaction.bytes, transaction.instr)
 		elif isinstance(transaction, MemoryWrite):
-			return self.write_bytes(addr, transaction.bytes, transaction.value)
-	def read_bytes(self, addr, bytes):
+			return self.write_bytes(addr, transaction.bytes, transaction.value, transaction.instr)
+	def read_bytes(self, addr, bytes, instr):
 		vv = 0
 		for offset in range(0, bytes):
-			vv |= self.read(addr + offset) << (8 * offset)
+			vv |= self.read(addr + offset, instr) << (8 * offset)
 		if self.print_mem:
 			print("0x{:08x} => 0x{:08x}".format(addr, vv))
 		return vv
-	def write_bytes(self, addr, bytes, vv):
+	def write_bytes(self, addr, bytes, vv, instr):
 		for offset in range(0, bytes):
-			self.write(addr + offset, (vv >> (8 * offset)) & 0xff)
+			self.write(addr + offset, (vv >> (8 * offset)) & 0xff, instr)
 		if self.print_mem:
 			print("0x{:08x} <= 0x{:08x}".format(addr, vv))
 	def read(self, addr):
@@ -109,12 +114,12 @@ class Ram(MemoryBase):
 		super().__init__(name, start, bytes)
 		self.data = [0] * self.bytes
 		self.state = [MemState.unknown] * self.bytes
-	def read(self, addr):
+	def read(self, addr, instr):
 		ii = addr - self.start
 		if self.state[ii] == MemState.unknown:
 			raise Exception("Cannot read from addr 0x{:08x}: value unknown".format(addr))
 		return self.data[ii]
-	def write(self, addr, vv):
+	def write(self, addr, vv, instr):
 		ii = addr - self.start
 		self.data[ii]  = vv
 		self.state[ii] = MemState.concrete
@@ -133,9 +138,9 @@ class Rom(MemoryBase):
 	def __init__(self, name, start, bytes, prog):
 		super().__init__(name, start, bytes)
 		self.prog = prog
-	def read(self, addr):
+	def read(self, addr, instr):
 		return self.prog.read_rom(addr, 1)
-	def write(self, addr, vv):
+	def write(self, addr, vv, instr):
 		raise Exception('Cannot write to Read Only Memory.')
 
 class SymVar:
@@ -146,14 +151,14 @@ class SymVar:
 class PeripheralMemory(Ram):
 	def __init__(self, name, start, bytes):
 		super().__init__(name, start, bytes)
-	def read(self, addr):
+	def read(self, addr, instr):
 		# TODO: remember that memory location was read
 		# return SymVar("{} @ 0x{:08x}".format(self.name, addr))
 		# TODO: distinguish between symbolic variables and concrete variables
 		#       for now we just always return 0 and hope that the value is never
 		#       used for anything important
 		return 0
-	def write(self, addr, vv):
+	def write(self, addr, vv, instr):
 		# TODO: remember that memory location was written
 		ii = addr - self.start
 		self.data[ii]  = vv
@@ -161,6 +166,7 @@ class PeripheralMemory(Ram):
 class Memory:
 	def __init__(self, *sections):
 		self.sections = sections
+		self.current_instruction = None		# needs to be updated before accessing mempry
 	def commit(self, transaction):
 		assert(isinstance(transaction, MemoryTransaction))
 		try:
@@ -171,10 +177,10 @@ class Memory:
 	# convenience methods to create and execute transactions
 	def read(self, addr, size='w'):
 		bytes = size if isinstance(size, int) else {'w':4,'h':2,'b':1}[size]
-		return self.commit(MemoryRead(addr=addr, bytes=bytes))
+		return self.commit(MemoryRead(addr=addr, bytes=bytes, instr=self.current_instruction))
 	def write(self, addr, value, size='w'):
 		bytes = size if isinstance(size, int) else {'w':4,'h':2,'b':1}[size]
-		return self.commit(MemoryWrite(addr=addr, bytes=bytes, value=value))
+		return self.commit(MemoryWrite(addr=addr, bytes=bytes, value=value, instr=self.current_instruction))
 
 	def print_known_content(self):
 		for sec in self.sections:

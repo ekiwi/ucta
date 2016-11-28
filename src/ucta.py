@@ -38,6 +38,7 @@ class Ucta:
 		self.max_instr_count = 300000
 		self.instr_count = 0
 		self.exe = ExecutionEngine(mem, regs)
+		self.mem = mem
 		self.regs = regs
 
 	def run(self, pc, fw):
@@ -47,6 +48,8 @@ class Ucta:
 				if not line.startswith('PC '):
 					print("Unknown line: {}".format(line))
 					continue
+				self.mem.current_instruction = self.instr_count
+				self.regs.current_instruction = self.instr_count
 				addr = int(line[3:].strip(), 16)
 				instr = self.prog.read_instruction(addr)
 				# check if this is a plausible pc value
@@ -55,7 +58,8 @@ class Ucta:
 						instr['offset'] < last_instr['offset'] + last_instr['size']):
 						raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
 				if self.print_instr:
-					print("\033[1m0x{:02x}\033[0m: {}".format(instr['offset'], instr['opcode']))
+					print("\033[1m{: 6}: 0x{:02x}\033[0m: {}".format(
+						self.instr_count, instr['offset'], instr['opcode']))
 				self.exe.exec(instr)
 				if self.print_regs: print(self.regs)
 				self.instr_count += 1
@@ -108,6 +112,6 @@ if __name__ == "__main__":
 
 	ucta.run(pc, fw)
 
-	mem.print_known_content()
+	#mem.print_known_content()
 
 	ucta.quit()
