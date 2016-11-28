@@ -24,6 +24,7 @@ Copyright 2016 by Kevin Läufer <kevin.laeufer@rwth-aachen.de>
 
 import re, sys
 from thumb2 import Thumb2Execution
+from esil import EsilExecution
 from memory import Memory, Rom, Ram, PeripheralMemory, RegisterBank
 from program import Program
 
@@ -33,7 +34,7 @@ class Ucta:
 		self.print_instr = True
 		self.print_regs  = True
 		self.print_mem   = True
-		self.max_instr_count = 30000
+		self.max_instr_count = 10
 		self.instr_count = 0
 		self.exe = ExecutionEngine(mem, regs)
 		self.regs = regs
@@ -54,7 +55,7 @@ class Ucta:
 						raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
 				if self.print_instr:
 					print("\033[1m0x{:02x}\033[0m: {}".format(instr['offset'], instr['opcode']))
-				self.exe.exec(offset=instr['offset'], opcode=instr['opcode'])
+				self.exe.exec(instr)
 				if self.print_regs: print(self.regs)
 				self.instr_count += 1
 				if self.instr_count >= self.max_instr_count:
@@ -101,7 +102,8 @@ if __name__ == "__main__":
 	if load_sp_from_rom:
 		regs['sp'] = mem.read(0x08000000)
 
-	ucta = Ucta(prog, mem, regs, Thumb2Execution)
+	#ucta = Ucta(prog, mem, regs, Thumb2Execution)
+	ucta = Ucta(prog, mem, regs, EsilExecution)
 
 	ucta.run(pc, fw)
 

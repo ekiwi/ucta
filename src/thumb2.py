@@ -91,7 +91,9 @@ class Thumb2Execution:
 		else:
 			return int(arg, 0)
 
-	def exec(self, offset, opcode):
+	def exec(self, instr):
+		offset = instr['offset']
+		opcode = instr['opcode']
 		# 4 byte aligned pc used for address calculations
 		pc = offset
 		self.R[15] = pc + 4 if pc % 4 == 0 else pc + 2
