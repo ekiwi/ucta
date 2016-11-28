@@ -170,9 +170,11 @@ class Memory:
 			raise Exception("Cannot access memory at: 0x{:08x}".format(transaction.addr))
 	# convenience methods to create and execute transactions
 	def read(self, addr, size='w'):
-		return self.commit(MemoryRead(addr=addr, bytes={'w':4,'h':2,'b':1}[size]))
+		bytes = size if isinstance(size, int) else {'w':4,'h':2,'b':1}[size]
+		return self.commit(MemoryRead(addr=addr, bytes=bytes))
 	def write(self, addr, value, size='w'):
-		return self.commit(MemoryWrite(addr=addr, bytes={'w':4,'h':2,'b':1}[size], value=value))
+		bytes = size if isinstance(size, int) else {'w':4,'h':2,'b':1}[size]
+		return self.commit(MemoryWrite(addr=addr, bytes=bytes, value=value))
 
 	def print_known_content(self):
 		for sec in self.sections:

@@ -34,7 +34,8 @@ class Ucta:
 		self.print_instr = True
 		self.print_regs  = True
 		self.print_mem   = True
-		self.max_instr_count = 10
+		#self.max_instr_count = 10
+		self.max_instr_count = 300000
 		self.instr_count = 0
 		self.exe = ExecutionEngine(mem, regs)
 		self.regs = regs
