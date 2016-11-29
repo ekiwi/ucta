@@ -27,14 +27,14 @@ from thumb2 import Thumb2Execution
 from esil import EsilExecution
 from memory import Memory, Rom, Ram, PeripheralMemory, RegisterBank
 from program import Program
-from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools
+from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools, RegisterTainter
 
 class Ucta:
 	def __init__(self, prog, mem, regs, ExecutionEngine, analysis):
 		self.prog = prog
-		self.print_instr = True
-		self.print_regs  = True
-		self.print_mem   = True
+		self.print_instr = False
+		self.print_regs  = False
+		self.print_mem   = False
 		#self.max_instr_count = 21
 		#self.max_instr_count = 11286
 		self.max_instr_count = 300000
@@ -109,18 +109,19 @@ if __name__ == "__main__":
 	for reg in sys.argv[3:]:
 		mm = re.match(r'(?P<reg>[rsplc\d+]+)=(?P<value>[a-fx\d]+)', reg)
 		if mm:
-			regs[mm.group('reg')] = int(mm.group('value'), 0)
+			regs[mm.group('reg')] = (int(mm.group('value'), 0), {'src': 'argv'})
 			if mm.group('reg') == 13: load_sp_from_rom = False
 		else:
 			raise Exception("Invalid register init parameter `{}`. Try e.g. sp=0x123".format(reg))
 	if load_sp_from_rom:
 		sp = mem.read(0x08000000)
-		print("initial stack pointer: 0x{:08x}".format(sp))
+		print("initial stack pointer: 0x{:08x}".format(sp[0]))
 		regs['sp'] = sp
 
 
 	# load analysis tools
 	tools = AnalysisTools(
+		RegisterTainter(),
 		ReturnAddressOverwriteCheck())
 
 	#ucta = Ucta(prog, mem, regs, Thumb2Execution)
@@ -128,6 +129,6 @@ if __name__ == "__main__":
 
 	ucta.run(pc, fw)
 
-	mem.print_known_content()
+	#mem.print_known_content()
 
 	ucta.quit()

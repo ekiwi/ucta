@@ -93,14 +93,17 @@ class MemoryBase:
 			return self.write_bytes(addr, transaction.bytes, transaction.value, transaction.instr)
 	def read_bytes(self, addr, bytes, instr):
 		vv = 0
+		# approximation: only load meta data of lowest byte
+		meta = self.read(addr, instr)[1]
 		for offset in range(0, bytes):
-			vv |= self.read(addr + offset, instr) << (8 * offset)
+			vv |= self.read(addr + offset, instr)[0] << (8 * offset)
 		if self.print_mem:
 			print("0x{:08x} => 0x{:08x}".format(addr, vv))
-		return vv
+		return (vv, meta)
 	def write_bytes(self, addr, bytes, vv, instr):
 		for offset in range(0, bytes):
-			self.write(addr + offset, (vv >> (8 * offset)) & 0xff, instr)
+			bb = (vv[0] >> (8 * offset)) & 0xff
+			self.write(addr=(addr + offset), vv=(bb, vv[1]), instr=instr)
 		if self.print_mem:
 			print("0x{:08x} <= 0x{:08x}".format(addr, vv))
 	def read(self, addr):
@@ -133,7 +136,7 @@ class Ram(MemoryBase):
 			out = '0x{:08x}: 0x'.format(word * 4 + self.start)
 			for ii in reversed(byte_range):
 				if self.state[ii] == MemState.unknown: out += '??'
-				else: out += '{:02x}'.format(self.data[ii])
+				else: out += '{:02x}'.format(self.data[ii][0])
 			print("{}   ({: 6}: {})".format(out, self.last_mod[ii][0], self.last_mod[ii][1]))
 
 class Rom(MemoryBase):
@@ -141,7 +144,7 @@ class Rom(MemoryBase):
 		super().__init__(name, start, bytes)
 		self.prog = prog
 	def read(self, addr, instr):
-		return self.prog.read_rom(addr, 1)
+		return (self.prog.read_rom(addr, 1), {'src': 'rom'})
 	def write(self, addr, vv, instr):
 		raise Exception('Cannot write to Read Only Memory.')
 
@@ -159,7 +162,7 @@ class PeripheralMemory(Ram):
 		# TODO: distinguish between symbolic variables and concrete variables
 		#       for now we just always return 0 and hope that the value is never
 		#       used for anything important
-		return 0
+		return (0, {'src': 'peripheral'})
 	def write(self, addr, vv, instr):
 		# TODO: remember that memory location was written
 		ii = addr - self.start

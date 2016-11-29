@@ -40,5 +40,7 @@ class Program:
 	def read_rom(self, addr, bytes):
 		length = {1:'b', 2:'w',4:'x',8:'q'}[bytes]
 		return int(self.r2.cmd("pfv {} @ 0x{:08x}".format(length, addr)), 16)
+	#def query_function(self, addr):
+	#S	# try to determine the name of the function to which the instruction at addr belongs
 	def close(self):
 		self.r2.quit()
