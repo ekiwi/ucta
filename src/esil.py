@@ -74,9 +74,10 @@ def is_reg(name):
 	return re.match(r'((r((\d)|(1\d)))|(sp)|(lr)|(pc)|(ip))$', name) is not None
 
 class EsilExecution:
-	def __init__(self, mem, regs):
+	def __init__(self, mem, regs, analysis):
 		self.mem = mem
 		self.R = regs
+		self.analysis = analysis
 		self.esil_commands = {
 			'$$': lambda t,stack: stack.append(self.R['pc']),
 			'=' : lambda t,stack: self.save_to_reg(stack.pop(), stack),
@@ -172,13 +173,17 @@ class EsilExecution:
 		bytes = token[1:-1]
 		addr = self.value(stack.pop())
 		c = self.mem.read(addr, size=int(bytes))
+		#reg = ??
+		#self.analysis.on_load(addr, value=value, dst_reg=r2i(reg))
 		stack.append(c)
 
 	def store(self, token, stack):
 		bytes = token[2:-1]
 		addr = self.value(stack.pop())
-		value = self.value(stack.pop())
+		reg = stack.pop()
+		value = self.value(reg)
 		self.mem.write(addr, value, size=int(bytes))
+		self.analysis.on_store(addr, value=value, src_reg=r2i(reg))
 
 	def load_multiple(self, token, stack):
 		# from radare2 (`libr/anal/p/anal_arm_cs.s`):
@@ -189,6 +194,7 @@ class EsilExecution:
 		regs = [stack.pop() for ii in range(0,count)]
 		for reg in regs:
 			self.R[reg] = self.mem.read(addr, size=4)
+			self.analysis.on_load(addr, value=self.R[reg], dst_reg=r2i(reg))
 			addr += 4
 
 	def store_multiple(self, token, stack):
@@ -205,6 +211,7 @@ class EsilExecution:
 		regs = [stack.pop() for ii in range(0,count)]
 		for reg in regs:
 			self.mem.write(addr, self.R[reg], size=4)
+			self.analysis.on_store(addr, value=self.R[reg], src_reg=r2i(reg))
 			addr += 4
 
 	def not_implemented_yet(self, token, stack):

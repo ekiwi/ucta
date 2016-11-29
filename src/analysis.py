@@ -20,14 +20,49 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 Copyright 2016 by Kevin Läufer <kevin.laeufer@rwth-aachen.de>
 """
 
-return_addr_locs = []
 
-def on_store(addr, value, src_reg, pc, instr_count):
-	if addr in return_addr_locs:
-		raise Exception("Return address overwriten with 0x{:08x} @ pc=0x{:08x}".format(value, pc))
-	elif src_reg == 14:
-		return_addr_locs.append(addr)
+class SimulationStep:
+	def __init__(self, instr_count, instr):
+		self.instr_count = instr_count
+		self.instr = instr
+	@property
+	def pc(self): return self.instr['offset']
+	@staticmethod
+	def default():
+		return SimulationStep(instr_count=-1, instr={'offset':-1, 'opcode':'', 'esil':''})
 
-def on_load(addr, value, dst_reg, pc, instr_count):
-	if addr in return_addr_locs:
-		return_addr_locs.remove(addr)
+class AnalysisTools:
+	def __init__(self, *tools):
+		self.tools = tools
+	def next_step(self, step):
+		for tool in self.tools: tool.next_step(step)
+	def on_store(self, addr, value, src_reg):
+		for tool in self.tools: tool.on_store(addr, value, src_reg)
+	def on_load(self, addr, value, dst_reg):
+		for tool in self.tools: tool.on_load(addr, value, dst_reg)
+
+class AnalysisTool:
+	def __init__(self):
+		self.step = SimulationStep.default()
+	def next_step(self, step):
+		self.step = step
+	def on_store(self, addr, value, src_reg):
+		pass
+	def on_load(self, addr, value, dst_reg):
+		pass
+
+
+class ReturnAddressOverwriteCheck(AnalysisTool):
+	def __init__(self):
+		self.return_addr_locs = {}
+	def on_store(self, addr, value, src_reg):
+		if addr in self.return_addr_locs:
+			msg  = "Return address overwriten with 0x{:08x} @ pc=0x{:08x}".format(value, self.step.instr['offset'])
+			ii = self.return_addr_locs[addr]
+			msg += "; originally saved at instr_count={} pc=0x{:08x}".format(ii.instr_count, ii.instr['offset'])
+			raise Exception(msg)
+		elif src_reg == 14:
+			self.return_addr_locs[addr] = self.step
+	def on_load(self, addr, value, dst_reg):
+		if addr in self.return_addr_locs:
+			del self.return_addr_locs[addr]

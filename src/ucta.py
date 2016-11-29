@@ -27,9 +27,10 @@ from thumb2 import Thumb2Execution
 from esil import EsilExecution
 from memory import Memory, Rom, Ram, PeripheralMemory, RegisterBank
 from program import Program
+from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools
 
 class Ucta:
-	def __init__(self, prog, mem, regs, ExecutionEngine):
+	def __init__(self, prog, mem, regs, ExecutionEngine, analysis):
 		self.prog = prog
 		self.print_instr = True
 		self.print_regs  = True
@@ -38,9 +39,10 @@ class Ucta:
 		#self.max_instr_count = 11286
 		self.max_instr_count = 300000
 		self.instr_count = 0
-		self.exe = ExecutionEngine(mem, regs)
+		self.exe = ExecutionEngine(mem, regs, tools)
 		self.mem = mem
 		self.regs = regs
+		self.tools = analysis
 
 	def run(self, pc, fw):
 		self.mem.set_print(print_mem=self.print_mem)
@@ -54,8 +56,10 @@ class Ucta:
 				instr = self.prog.read_instruction(addr)
 
 				# update current instruction for a simple taint analysis
-				self.mem.current_instruction = (self.instr_count, instr['opcode'])
-				self.regs.current_instruction = (self.instr_count, instr['opcode'])
+				step = SimulationStep(self.instr_count, instr)
+				tools.next_step(step)
+				self.mem.current_instruction = (step.instr_count, step.instr['opcode'])
+				self.regs.current_instruction = (step.instr_count, step.instr['opcode'])
 				# check if this is a plausible pc value
 				if last_instr:
 					if (instr['offset'] > last_instr['offset'] and
@@ -114,8 +118,13 @@ if __name__ == "__main__":
 		print("initial stack pointer: 0x{:08x}".format(sp))
 		regs['sp'] = sp
 
+
+	# load analysis tools
+	tools = AnalysisTools(
+		ReturnAddressOverwriteCheck())
+
 	#ucta = Ucta(prog, mem, regs, Thumb2Execution)
-	ucta = Ucta(prog, mem, regs, EsilExecution)
+	ucta = Ucta(prog, mem, regs, EsilExecution, tools)
 
 	ucta.run(pc, fw)
 
