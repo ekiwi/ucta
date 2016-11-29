@@ -22,9 +22,10 @@ Copyright 2016 by Kevin Läufer <kevin.laeufer@rwth-aachen.de>
 
 
 class SimulationStep:
-	def __init__(self, instr_count, instr):
+	def __init__(self, instr_count, instr, sp):
 		self.instr_count = instr_count
 		self.instr = instr
+		self.sp = sp
 	@property
 	def pc(self): return self.instr['offset']
 	@staticmethod
@@ -74,6 +75,81 @@ class AnalysisTool:
 		pass
 	def on_store_to_reg(self, value, reg):
 		pass
+
+
+class FunctionTracker(AnalysisTool):
+	def __init__(self):
+		from dwarf import load_fake_dwarf
+		self.functions = load_fake_dwarf()
+		self.fun_stack = []
+		self.frame_ptr = []
+	def get_function(self, pc):
+		for ff in self.functions:
+			if pc >= ff['lowpc'] and pc < ff['highpc']:
+				return ff
+		return {'name': 'unknown'}
+	def next_step(self, step):
+		super(FunctionTracker, self).next_step(step)
+		# track new functions to calculate frame pointer
+		fun = self.get_function(step.pc)
+		if len(self.fun_stack) == 0 or fun != self.fun_stack[-1]:
+			# this does not handle recursive functions
+			if len(self.fun_stack) > 1 and fun == self.fun_stack[-2]:
+				print("{} <= {}".format(self.fun_stack[-2]['name'], self.fun_stack[-1]['name']))
+				self.fun_stack.pop()
+				self.frame_ptr.pop()
+			else:
+				if len(self.fun_stack) > 0:
+					print("{} => {}".format(self.fun_stack[-1]['name'], fun['name']))
+				else:
+					print("=> {}".format(fun['name']))
+				self.fun_stack.append(fun)
+				self.frame_ptr.append(step.sp[0])
+
+
+class PointerTracker(FunctionTracker):
+	def __init__(self):
+		super(PointerTracker, self).__init__()
+	def find_stack_array(self, addr):
+		#print("searching for array @ 0x{:08x}".format(addr))
+		for var in self.fun_stack[-1]['vars']:
+			if var['location']['mem'] != 'stack': continue
+			if var['type']['name'] != 'array': continue
+			start = self.frame_ptr[-1] + var['location']['offset']
+			#print("{} @ 0x{:08x}".format(var['name'], start))
+			if start == addr:
+				end = start + var['type']['length'] * var['type']['base']['bytes']
+				return (var['name'], start, end)
+		return None
+	def on_store_to_reg(self, value, reg):
+		if len(self.fun_stack) == 0:
+			return
+		#if self.step.pc == 0x0800022e:
+		#	print("------------ 0x0800022e ----------")
+		#	print(value)
+		#	print(reg)
+		if not 'regs' in value[1]: return
+		if reg[0] == 'sp': return
+		if 'sp' in value[1]['regs']:
+			if 'array' in value[1] and len(value[1]['array']) > 0: return
+			a = self.find_stack_array(value[0])
+			if a is not None:
+				value[1]['array'] = [a]
+				print(a)
+				print(reg)
+				print("pc=0x{:08x}".format(self.step.pc))
+
+	def on_load(self, addr, value):
+		if 'array' in value[1] and len(value[1]['array']) > 0:
+			print('load array {} from {}'.format(value[1]['array'], value[0]))
+	def on_binary_op(self, a, b, result):
+		a_array = a[1]['array'] if 'array' in a[1] else []
+		b_array = b[1]['array'] if 'array' in b[1] else []
+		if self.step.pc == 0x080001a6:
+			print("------------ 0x080001a6 ----------")
+			print(a_array, b_array)
+		result[1]['array'] = a_array + b_array
+
 
 class ReturnAddressOverwriteCheck(AnalysisTool):
 	def __init__(self):

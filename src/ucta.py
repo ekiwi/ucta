@@ -27,7 +27,7 @@ from thumb2 import Thumb2Execution
 from esil import EsilExecution
 from memory import Memory, Rom, Ram, PeripheralMemory, RegisterBank
 from program import Program
-from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools, RegisterTainter
+from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools, RegisterTainter, PointerTracker
 
 class Ucta:
 	def __init__(self, prog, mem, regs, ExecutionEngine, analysis):
@@ -56,7 +56,7 @@ class Ucta:
 				instr = self.prog.read_instruction(addr)
 
 				# update current instruction for a simple taint analysis
-				step = SimulationStep(self.instr_count, instr)
+				step = SimulationStep(self.instr_count, instr, sp=self.regs[13])
 				tools.next_step(step)
 				self.mem.current_instruction = (step.instr_count, step.instr['opcode'])
 				self.regs.current_instruction = (step.instr_count, step.instr['opcode'])
@@ -122,7 +122,8 @@ if __name__ == "__main__":
 	# load analysis tools
 	tools = AnalysisTools(
 		RegisterTainter(),
-		ReturnAddressOverwriteCheck())
+		ReturnAddressOverwriteCheck(),
+		PointerTracker())
 
 	#ucta = Ucta(prog, mem, regs, Thumb2Execution)
 	ucta = Ucta(prog, mem, regs, EsilExecution, tools)
