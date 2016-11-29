@@ -43,26 +43,23 @@ def patch_esil(instr):
 	m = re_ldr_str.match(op)
 	if m and m.group('post'):
 		fix = ',{},{},+='.format(m.group('post'), m.group('addr'))
-		#print("PATCH: {}".format(instr['esil']))
 		instr['esil'] += fix
-		#print("=> {}".format(instr['esil']))
-		#sys.exit(1)
+	if m and m.group('pre'):
+		fix = ',{},{},+='.format(m.group('offset'), m.group('addr'))
+		instr['esil'] += fix
 	# the radare2 implementation of stm/ldm seems buggy
 	m = re_ldm_stm.match(op)
 	if m:
 		cmds = []
-		op = m.groupdict()
-		args = op['args'].split(", ")
+		dd = m.groupdict()
+		args = dd['args'].split(", ")
 		for arg in args:
-			if   op['op'] == 'stm': cmds.append('{},{},=[4]'.format(arg, op['reg']))
-			elif op['op'] == 'ldm': cmds.append('{},[4],{},='.format(op['reg'], arg))
-			else: raise Exception('unhandled op code `{}`'.format(op['op']))
-		if op['increment'] is not None:
-			cmds.append('{},{},+='.format(4 * len(args), op['reg']))
-		#print("PATCH: {}".format(instr['esil']))
+			if   dd['op'] == 'stm': cmds.append('{},{},=[4]'.format(arg, dd['reg']))
+			elif dd['op'] == 'ldm': cmds.append('{},[4],{},='.format(dd['reg'], arg))
+			else: raise Exception('unhandled op code `{}`'.format(dd['op']))
+		if dd['increment'] is not None:
+			cmds.append('{},{},+='.format(4 * len(args), dd['reg']))
 		instr['esil'] = ','.join(cmds)
-		#print("=> {}".format(instr['esil']))
-		#sys.exit(1)
 
 # register to index
 def r2i(name):
