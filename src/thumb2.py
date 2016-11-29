@@ -121,14 +121,14 @@ class Thumb2Execution:
 				self.R[op['addr']] = addr    # but we still need to store the new address
 		elif name == 'push':
 			for rr in sorted((r2i(rr) for rr in args), reverse=True):
+				self.R[r2i('sp')] = self.R[r2i('sp')] - 4
 				self.mem.write(self.R[r2i('sp')], self.R[rr])
 				# on_store(addr=self.R[r2i('sp')], value=self.R[rr], src_reg=r2i(rr), pc=pc, instr_count=instr_count)
-				self.R[r2i('sp')] = self.R[r2i('sp')] - 4
 		elif name == 'pop':
 			for rr in sorted(r2i(rr) for rr in args):
-				self.R[r2i('sp')] = self.R[r2i('sp')] + 4
 				self.R[rr] = self.mem.read(self.R[r2i('sp')])
 				# on_load(addr=self.R[r2i('sp')], value=self.R[rr], dst_reg=r2i(rr), pc=pc, instr_count=instr_count)
+				self.R[r2i('sp')] = self.R[r2i('sp')] + 4
 		elif name in ['stm', 'ldm']:
 			addr = self.R[r2i(op['reg'])]
 			for rr in sorted(r2i(rr) for rr in args):
