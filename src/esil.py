@@ -43,10 +43,10 @@ def patch_esil(instr):
 	m = re_ldr_str.match(op)
 	if m and m.group('post'):
 		fix = ',{},{},+='.format(m.group('post'), m.group('addr'))
-		instr['esil'] += fix
+		return instr['esil'] + fix
 	if m and m.group('pre'):
 		fix = ',{},{},+='.format(m.group('offset'), m.group('addr'))
-		instr['esil'] += fix
+		return instr['esil'] + fix
 	# the radare2 implementation of stm/ldm seems buggy
 	m = re_ldm_stm.match(op)
 	if m:
@@ -59,7 +59,8 @@ def patch_esil(instr):
 			else: raise Exception('unhandled op code `{}`'.format(dd['op']))
 		if dd['increment'] is not None:
 			cmds.append('{},{},+='.format(4 * len(args), dd['reg']))
-		instr['esil'] = ','.join(cmds)
+		return ','.join(cmds)
+	return instr['esil']
 
 # register to index
 def r2i(name):
@@ -99,13 +100,13 @@ class EsilExecution:
 			self.esil_commands[tok] = cmd
 
 	def exec(self, instr):
-		patch_esil(instr)
+		esil = patch_esil(instr)
 		self.R[15] = instr['offset']
 		if instr['type'] in ['cjmp']:
 			return # unsupported instructions
 		stack = []
-		print(instr['esil'])
-		for token in instr['esil'].split(','):
+		#print(esil)
+		for token in esil.split(','):
 			if token in self.esil_commands:
 				self.esil_commands[token](token, stack)
 			else:

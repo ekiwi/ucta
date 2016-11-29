@@ -30,8 +30,13 @@ class Program:
 		self.r2 = r2pipe.open(self.filename)
 		# enable esil output
 		self.r2.cmd("e asm.esil = true")
+		# buffers
+		self.instr_buffer = {}
 	def read_instruction(self, addr):
-		return self.r2.cmdj("pdj 1 @ 0x{:08x}".format(addr))[0]
+		if addr not in self.instr_buffer:
+			instr = self.r2.cmdj("pdj 1 @ 0x{:08x}".format(addr))[0]
+			self.instr_buffer[addr] = instr
+		return self.instr_buffer[addr]
 	def read_rom(self, addr, bytes):
 		length = {1:'b', 2:'w',4:'x',8:'q'}[bytes]
 		return int(self.r2.cmd("pfv {} @ 0x{:08x}".format(length, addr)), 16)
