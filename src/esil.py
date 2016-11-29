@@ -53,9 +53,9 @@ def patch_esil(instr):
 		cmds = []
 		dd = m.groupdict()
 		args = dd['args'].split(", ")
-		for arg in args:
-			if   dd['op'] == 'stm': cmds.append('{},{},=[4]'.format(arg, dd['reg']))
-			elif dd['op'] == 'ldm': cmds.append('{},[4],{},='.format(dd['reg'], arg))
+		for (arg, offset) in zip(args, range(0, len(args)*4, 4)):
+			if   dd['op'] == 'stm': cmds.append('{},{},{},+,=[4]'.format(arg, dd['reg'], offset))
+			elif dd['op'] == 'ldm': cmds.append('{},{},+,[4],{},='.format(dd['reg'], offset, arg))
 			else: raise Exception('unhandled op code `{}`'.format(dd['op']))
 		if dd['increment'] is not None:
 			cmds.append('{},{},+='.format(4 * len(args), dd['reg']))
