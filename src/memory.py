@@ -48,8 +48,8 @@ class RegisterBank:
 		self.name = 'regs'
 		self.data = [0] * count
 		self.state = [MemState.unknown] * count
-		self.last_mod = [-1] * count
-		self.current_instruction = -1		# needs to be updated before accessing mempry
+		self.last_mod = [(-1, "")] * count
+		self.current_instruction = (-1, "")		# needs to be updated before accessing mempry
 	def __getitem__(self, ii):
 		ii = r2i(ii)
 		if self.state[ii] == MemState.unknown:
@@ -70,9 +70,9 @@ class RegisterBank:
 				cc = 0
 			if self.state[ii] == MemState.unknown: continue
 			if isinstance(self.data[ii], int):
-				out += 'r{}: 0x{:08x} (@{: 6})   '.format(ii, self.data[ii], self.last_mod[ii])
+				out += 'r{}: 0x{:08x} (@{: 6})   '.format(ii, self.data[ii], self.last_mod[ii][0])
 			else:
-				out += 'r{}: {} (@{: 6})   '.format(ii, self.data[ii], self.last_mod[ii])
+				out += 'r{}: {} (@{: 6})   '.format(ii, self.data[ii], self.last_mod[ii][0])
 			cc += 1
 		return out
 
@@ -114,6 +114,7 @@ class Ram(MemoryBase):
 		super().__init__(name, start, bytes)
 		self.data = [0] * self.bytes
 		self.state = [MemState.unknown] * self.bytes
+		self.last_mod = [(-1,"")] * self.bytes
 	def read(self, addr, instr):
 		ii = addr - self.start
 		if self.state[ii] == MemState.unknown:
@@ -123,6 +124,7 @@ class Ram(MemoryBase):
 		ii = addr - self.start
 		self.data[ii]  = vv
 		self.state[ii] = MemState.concrete
+		self.last_mod[ii] = instr
 	def print_known_content(self):
 		for word in range(0, len(self.data) >> 2):
 			byte_range = range(word * 4, word * 4 + 4)
@@ -132,7 +134,7 @@ class Ram(MemoryBase):
 			for ii in reversed(byte_range):
 				if self.state[ii] == MemState.unknown: out += '??'
 				else: out += '{:02x}'.format(self.data[ii])
-			print(out + '   ')
+			print("{}   ({: 6}: {})".format(out, self.last_mod[ii][0], self.last_mod[ii][1]))
 
 class Rom(MemoryBase):
 	def __init__(self, name, start, bytes, prog):
@@ -167,6 +169,8 @@ class Memory:
 	def __init__(self, *sections):
 		self.sections = sections
 		self.current_instruction = None		# needs to be updated before accessing mempry
+	def set_print(self, print_mem=True):
+		for sec in self.sections: sec.print_mem = print_mem
 	def commit(self, transaction):
 		assert(isinstance(transaction, MemoryTransaction))
 		try:

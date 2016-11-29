@@ -34,29 +34,34 @@ class Ucta:
 		self.print_instr = True
 		self.print_regs  = True
 		self.print_mem   = True
-		#self.max_instr_count = 10
-		self.max_instr_count = 300000
+		#self.max_instr_count = 21
+		#self.max_instr_count = 11286
+		self.max_instr_count = 11526
 		self.instr_count = 0
 		self.exe = ExecutionEngine(mem, regs)
 		self.mem = mem
 		self.regs = regs
 
 	def run(self, pc, fw):
+		self.mem.set_print(print_mem=self.print_mem)
 		with open(pc) as ff:
 			last_instr = None
 			for line in ff.readlines():
 				if not line.startswith('PC '):
 					print("Unknown line: {}".format(line))
 					continue
-				self.mem.current_instruction = self.instr_count
-				self.regs.current_instruction = self.instr_count
 				addr = int(line[3:].strip(), 16)
 				instr = self.prog.read_instruction(addr)
+
+				# update current instruction for a simple taint analysis
+				self.mem.current_instruction = (self.instr_count, instr['opcode'])
+				self.regs.current_instruction = (self.instr_count, instr['opcode'])
 				# check if this is a plausible pc value
 				if last_instr:
 					if (instr['offset'] > last_instr['offset'] and
 						instr['offset'] < last_instr['offset'] + last_instr['size']):
 						raise Exception('Overlapping instructions @ pc=0x{:08x}:\n{}\n{}'.format(addr, last_instr, instr))
+				#print(self.instr_count)
 				if self.print_instr:
 					print("\033[1m{: 6}: 0x{:02x}\033[0m: {}".format(
 						self.instr_count, instr['offset'], instr['opcode']))
@@ -105,13 +110,15 @@ if __name__ == "__main__":
 		else:
 			raise Exception("Invalid register init parameter `{}`. Try e.g. sp=0x123".format(reg))
 	if load_sp_from_rom:
-		regs['sp'] = mem.read(0x08000000)
+		sp = mem.read(0x08000000)
+		print("initial stack pointer: 0x{:08x}".format(sp))
+		regs['sp'] = sp
 
 	#ucta = Ucta(prog, mem, regs, Thumb2Execution)
 	ucta = Ucta(prog, mem, regs, EsilExecution)
 
 	ucta.run(pc, fw)
 
-	#mem.print_known_content()
+	mem.print_known_content()
 
 	ucta.quit()
