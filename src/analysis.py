@@ -128,8 +128,11 @@ class PointerTracker(FunctionTracker):
 		#	print("------------ 0x0800022e ----------")
 		#	print(value)
 		#	print(reg)
-		if not 'regs' in value[1]: return
-		if reg[0] == 'sp': return
+		if reg[0] == 'sp':
+			value[1]['array'] = []
+			return
+		if not 'regs' in value[1]:
+			return
 		if 'sp' in value[1]['regs']:
 			if 'array' in value[1] and len(value[1]['array']) > 0: return
 			a = self.find_stack_array(value[0])
@@ -139,16 +142,23 @@ class PointerTracker(FunctionTracker):
 				print(reg)
 				print("pc=0x{:08x}".format(self.step.pc))
 
-	def on_load(self, addr, value):
-		if 'array' in value[1] and len(value[1]['array']) > 0:
-			print('load array {} from {}'.format(value[1]['array'], value[0]))
+	def on_store(self, addr, value):
+		if 'array' in addr[1] and len(addr[1]['array']) > 0:
+			print('store array {} at {}'.format(addr[1]['array'], addr[0]))
+			if addr[0] < addr[1]['array'][0][1] or addr[0] >= addr[1]['array'][0][2]:
+				print("addr:  {}".format(addr))
+				print("value: {}".format(value))
+				raise Exception("ERROR")
 	def on_binary_op(self, a, b, result):
 		a_array = a[1]['array'] if 'array' in a[1] else []
 		b_array = b[1]['array'] if 'array' in b[1] else []
-		if self.step.pc == 0x080001a6:
-			print("------------ 0x080001a6 ----------")
+		if self.step.pc in [0x080001a6, 0x0800060a]:
+			print("------------ 0x{:08x} ----------".format(self.step.pc))
 			print(a_array, b_array)
 		result[1]['array'] = a_array + b_array
+	def on_unary_op(self, a, result):
+		if 'array' in a[1]:
+			result[1]['array'] = a[1]['result']
 
 
 class ReturnAddressOverwriteCheck(AnalysisTool):

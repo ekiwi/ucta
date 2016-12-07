@@ -96,10 +96,10 @@ def load_fake_dwarf():
 		  'params': [],
 		  'vars': [
 		    { 'name': 'good_inp', 'location': {'mem': 'stack', 'offset': -28}, # offset: 0x1c
-		      'type': {'name': 'array', 'length': 8,
+		      'type': {'name': 'array', 'length': 8+1,
 		               'base': unsigned_char_t } },
 		    { 'name': 'bad_inp', 'location': {'mem': 'stack', 'offset': -48}, # offset: 0x30
-		      'type': {'name': 'array', 'length': 16,
+		      'type': {'name': 'array', 'length': 16+1,
 		               'base': unsigned_char_t } },
 		  ]
 		},
