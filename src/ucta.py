@@ -27,7 +27,7 @@ from thumb2 import Thumb2Execution
 from esil import EsilExecution
 from memory import Memory, Rom, Ram, PeripheralMemory, RegisterBank
 from program import Program
-from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools, RegisterTainter, PointerTracker
+from analysis import ReturnAddressOverwriteCheck, SimulationStep, AnalysisTools, RegisterTainter, ArrayBoundsChecker
 
 class Ucta:
 	def __init__(self, prog, mem, regs, ExecutionEngine, analysis):
@@ -123,7 +123,7 @@ if __name__ == "__main__":
 	tools = AnalysisTools(
 		RegisterTainter(),
 		ReturnAddressOverwriteCheck(),
-		PointerTracker())
+		ArrayBoundsChecker())
 
 	#ucta = Ucta(prog, mem, regs, Thumb2Execution)
 	ucta = Ucta(prog, mem, regs, EsilExecution, tools)

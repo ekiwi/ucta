@@ -83,6 +83,8 @@ class FunctionTracker(AnalysisTool):
 		self.functions = load_fake_dwarf()
 		self.fun_stack = []
 		self.frame_ptr = []
+		self.print = lambda x: None
+		#self.print = print
 	def get_function(self, pc):
 		for ff in self.functions:
 			if pc >= ff['lowpc'] and pc < ff['highpc']:
@@ -95,39 +97,34 @@ class FunctionTracker(AnalysisTool):
 		if len(self.fun_stack) == 0 or fun != self.fun_stack[-1]:
 			# this does not handle recursive functions
 			if len(self.fun_stack) > 1 and fun == self.fun_stack[-2]:
-				print("{} <= {}".format(self.fun_stack[-2]['name'], self.fun_stack[-1]['name']))
+				self.print("{} <= {}".format(self.fun_stack[-2]['name'], self.fun_stack[-1]['name']))
 				self.fun_stack.pop()
 				self.frame_ptr.pop()
 			else:
 				if len(self.fun_stack) > 0:
-					print("{} => {}".format(self.fun_stack[-1]['name'], fun['name']))
+					self.print("{} => {}".format(self.fun_stack[-1]['name'], fun['name']))
 				else:
-					print("=> {}".format(fun['name']))
+					self.print("=> {}".format(fun['name']))
 				self.fun_stack.append(fun)
 				self.frame_ptr.append(step.sp[0])
 
-
+# currently only supports pointers to stack allocated fixed size arrays
 class PointerTracker(FunctionTracker):
 	def __init__(self):
-		super(PointerTracker, self).__init__()
+		super().__init__()
 	def find_stack_array(self, addr):
-		#print("searching for array @ 0x{:08x}".format(addr))
 		for var in self.fun_stack[-1]['vars']:
 			if var['location']['mem'] != 'stack': continue
 			if var['type']['name'] != 'array': continue
 			start = self.frame_ptr[-1] + var['location']['offset']
-			#print("{} @ 0x{:08x}".format(var['name'], start))
 			if start == addr:
 				end = start + var['type']['length'] * var['type']['base']['bytes']
-				return (var['name'], start, end)
+				step = var['type']['base']['bytes']
+				return {'name': var['name'], 'start': start, 'end': end, 'step': step}
 		return None
 	def on_store_to_reg(self, value, reg):
 		if len(self.fun_stack) == 0:
 			return
-		#if self.step.pc == 0x0800022e:
-		#	print("------------ 0x0800022e ----------")
-		#	print(value)
-		#	print(reg)
 		if reg[0] == 'sp':
 			value[1]['array'] = []
 			return
@@ -138,27 +135,44 @@ class PointerTracker(FunctionTracker):
 			a = self.find_stack_array(value[0])
 			if a is not None:
 				value[1]['array'] = [a]
-				print(a)
-				print(reg)
-				print("pc=0x{:08x}".format(self.step.pc))
-
 	def on_store(self, addr, value):
+		self.on_memory_access(addr, value, self.on_store_array)
+	def on_load(self, addr, value):
+		self.on_memory_access(addr, value, self.on_load_array)
+	def on_memory_access(self, addr, value, on_access_array):
 		if 'array' in addr[1] and len(addr[1]['array']) > 0:
-			print('store array {} at {}'.format(addr[1]['array'], addr[0]))
-			if addr[0] < addr[1]['array'][0][1] or addr[0] >= addr[1]['array'][0][2]:
-				print("addr:  {}".format(addr))
-				print("value: {}".format(value))
-				raise Exception("ERROR")
+			assert(len(addr[1]['array']) == 1)
+			array = addr[1]['array'][0]
+			index = (addr[0] - array['start']) / array['step']
+			assert(index.is_integer())
+			on_access_array(array, int(index), addr, value)
 	def on_binary_op(self, a, b, result):
 		a_array = a[1]['array'] if 'array' in a[1] else []
 		b_array = b[1]['array'] if 'array' in b[1] else []
-		if self.step.pc in [0x080001a6, 0x0800060a]:
-			print("------------ 0x{:08x} ----------".format(self.step.pc))
-			print(a_array, b_array)
 		result[1]['array'] = a_array + b_array
 	def on_unary_op(self, a, result):
 		if 'array' in a[1]:
 			result[1]['array'] = a[1]['result']
+	def on_store_array(self, array, index, addr, value):
+		pass
+	def on_load_array(self, array, index, addr, value):
+		pass
+
+class ArrayBoundsChecker(PointerTracker):
+	def __init__(self):
+		super().__init__()
+	def on_store_array(self, array, index, addr, value):
+		print('{}[{}] <= {}'.format(array['name'], index, value[0]))
+		if addr[0] < array['start'] or addr[0] >= array['end']:
+			print("addr:  {}".format(addr))
+			print("value: {}".format(value))
+			raise Exception("ERROR")
+	def on_load_array(self, array, index, addr, value):
+		print('{}[{}] => {}'.format(array['name'], index, value[0]))
+		if addr[0] < array['start'] or addr[0] >= array['end']:
+			print("addr:  {}".format(addr))
+			print("value: {}".format(value))
+			raise Exception("ERROR")
 
 
 class ReturnAddressOverwriteCheck(AnalysisTool):
