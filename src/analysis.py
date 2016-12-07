@@ -127,14 +127,18 @@ class PointerTracker(FunctionTracker):
 			return
 		if reg[0] == 'sp':
 			value[1]['array'] = []
-			return
-		if not 'regs' in value[1]:
-			return
-		if 'sp' in value[1]['regs']:
+		elif 'regs' in value[1] and'sp' in value[1]['regs']:
 			if 'array' in value[1] and len(value[1]['array']) > 0: return
 			a = self.find_stack_array(value[0])
 			if a is not None:
 				value[1]['array'] = [a]
+	def on_binary_op(self, a, b, result):
+		a_array = a[1]['array'] if 'array' in a[1] else []
+		b_array = b[1]['array'] if 'array' in b[1] else []
+		result[1]['array'] = a_array + b_array
+	def on_unary_op(self, a, result):
+		if 'array' in a[1]:
+			result[1]['array'] = a[1]['array']
 	def on_store(self, addr, value):
 		self.on_memory_access(addr, value, self.on_store_array)
 	def on_load(self, addr, value):
@@ -146,13 +150,6 @@ class PointerTracker(FunctionTracker):
 			index = (addr[0] - array['start']) / array['step']
 			assert(index.is_integer())
 			on_access_array(array, int(index), addr, value)
-	def on_binary_op(self, a, b, result):
-		a_array = a[1]['array'] if 'array' in a[1] else []
-		b_array = b[1]['array'] if 'array' in b[1] else []
-		result[1]['array'] = a_array + b_array
-	def on_unary_op(self, a, result):
-		if 'array' in a[1]:
-			result[1]['array'] = a[1]['result']
 	def on_store_array(self, array, index, addr, value):
 		pass
 	def on_load_array(self, array, index, addr, value):
@@ -194,12 +191,15 @@ class RegisterTainter(AnalysisTool):
 	def __init__(self):
 		self.return_addr_locs = {}
 	def on_load(self, addr, value):
-		value[1]['regs'] = []
+		value[1]['regs'] = set()
 	def on_load_from_reg(self, value, reg):
 		if isinstance(reg, tuple):
 			reg = reg[0]
-		value[1]['regs'] = [reg]
+		value[1]['regs'] =set([reg])
 	def on_binary_op(self, a, b, result):
-		a_regs = a[1]['regs'] if 'regs' in a[1] else []
-		b_regs = b[1]['regs'] if 'regs' in b[1] else []
-		result[1]['regs'] = a_regs + b_regs
+		a_regs = a[1]['regs'] if 'regs' in a[1] else set()
+		b_regs = b[1]['regs'] if 'regs' in b[1] else set()
+		result[1]['regs'] = a_regs | b_regs
+	def on_unary_op(self, a, result):
+		if 'regs' in a[1]:
+			result[1]['regs'] = a[1]['regs']
