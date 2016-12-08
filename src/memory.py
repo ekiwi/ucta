@@ -105,7 +105,7 @@ class MemoryBase:
 			bb = (vv[0] >> (8 * offset)) & 0xff
 			self.write(addr=(addr + offset), vv=(bb, vv[1]), instr=instr)
 		if self.print_mem:
-			print("0x{:08x} <= 0x{:08x}".format(addr, vv))
+			print("0x{:08x} <= 0x{:08x} ({})".format(addr, vv[0], vv[1]))
 	def read(self, addr):
 		raise Exception("Read method to retrive bytes needs to be implemented!")
 	def write(self, addr, vv):
