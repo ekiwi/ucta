@@ -47,6 +47,13 @@ def patch_esil(instr):
 	if m and m.group('pre'):
 		fix = ',{},{},+='.format(m.group('offset'), m.group('addr'))
 		return instr['esil'] + fix
+	# sometimes radare2 misses register offset arguments and instead puts a 0 or 0x0
+	if m and m.group('offset') and is_reg(m.group('offset')):
+		cmds = instr['esil'].split(',')
+		if '0' in cmds[:2] or '0x0' in cmds[:2]:
+			if cmds[0] in ['0', '0x0']: cmds[0] = m.group('offset')
+			if cmds[1] in ['0', '0x0']: cmds[1] = m.group('offset')
+			instr['esil'] = ','.join(cmds)
 	# the radare2 implementation of stm/ldm seems buggy
 	m = re_ldm_stm.match(op)
 	if m:
