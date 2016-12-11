@@ -44,8 +44,9 @@ main()
 	const uint8_t good_inp [1+8] = {8, '0', '1', '2', '3', '4', '5', '6', '7'};
 	buggy_function(good_inp);
 
-	// 0xaa for padding; addr: 0x80003a4
-	const uint8_t bad_inp [1+8+8] = {8 + 8, '0', '1', '2', '3', '4', '5', '6', '7', 0xaa, 0xaa, 0xaa, 0xaa, 0xa4, 0x03, 0x00, 0x80};
+	// 0xaa for padding; addr: 0x080001c8 (+1 for thumb mode function pointer)
+	const uint8_t bad_inp [1+8+8] = {8 + 8, '0', '1', '2', '3', '4', '5', '6', '7', 0xaa, 0xaa, 0xaa, 0xaa, 0xc9, 0x01, 0x00, 0x08};
+	// comment out this line to prevent a call to the "secret" function
 	buggy_function(bad_inp);
 
 
