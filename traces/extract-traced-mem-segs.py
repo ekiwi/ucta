@@ -33,7 +33,7 @@ if stop > start: intervals.append((start, stop-start))
 #	print("0x{:08x} => 0x{:08x} ({})".format(ii[0], ii[0]+ii[1], ii[1]))
 
 with tempfile.NamedTemporaryFile(mode='w', suffix=".r2", delete=False) as r2:
-	print("aaaa", file=r2)
+	print("aaa", file=r2)
 	for ii in intervals:
 		print("s 0x{:08x}".format(ii[0]), file=r2)
 		print("pD {}".format(ii[1] + 2),file=r2)
