@@ -109,7 +109,7 @@ class EsilExecution:
 	def exec(self, instr):
 		esil = patch_esil(instr)
 		self.R[15] = (instr['offset'], {'src': 'pc'})
-		if instr['type'] in ['cjmp']:
+		if instr['type'] in ['cjmp', 'cmp']:
 			return # unsupported instructions
 		stack = []
 		#print(esil)
