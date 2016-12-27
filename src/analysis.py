@@ -41,8 +41,6 @@ class AnalysisTools:
 		for tool in self.tools: tool.on_store(addr, value)
 	def on_load(self, addr, value):
 		for tool in self.tools: tool.on_load(addr, value)
-	def on_assign_reg(self, reg, value):
-		for tool in self.tools: tool.on_assign_reg(reg, value)
 	def on_compare(self, a, b, result):
 		for tool in self.tools: tool.on_compare(a, b, result)
 	def on_binary_op(self, a, b, result):
@@ -62,8 +60,6 @@ class AnalysisTool:
 	def on_store(self, addr, value):
 		pass
 	def on_load(self, addr, value):
-		pass
-	def on_assign_reg(self, reg, value):
 		pass
 	def on_compare(self, a, b, result):
 		pass
